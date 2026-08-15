@@ -1,0 +1,297 @@
+<!DOCTYPE html><html lang="en"><head>
+  <base href="$FLUTTER_BASE_HREF">
+
+  <meta charset="UTF-8">
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
+  <meta http-equiv="X-UA-Compatible" content="IE=Edge">
+  <meta name="description" content="Nexa browser home page">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+  <meta name="apple-mobile-web-app-title" content="Nexa">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+
+  <link rel="apple-touch-icon" href="icons/Icon-192.png">
+  <link rel="icon" type="image/png" href="favicon.png">
+  <link rel="manifest" href="manifest.json">
+
+  <title>Nexa</title>
+
+  <style>
+    :root {
+      color-scheme: dark;
+      font-family: Arial, Helvetica, sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+
+    html, body {
+      margin: 0;
+      min-height: 100%;
+      background: linear-gradient(135deg, #060816 0%, #111827 100%);
+      color: #f5f7ff;
+    }
+
+    body {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+
+    .app-shell {
+      width: min(100%, 860px);
+      background: rgba(17, 24, 39, 0.92);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 24px;
+      padding: 32px;
+      box-shadow: 0 20px 50px rgba(0,0,0,0.28);
+    }
+
+    .hero {
+      text-align: center;
+      margin-bottom: 24px;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 8px 14px;
+      border-radius: 999px;
+      background: linear-gradient(135deg, #2DE1B0 0%, #1A73E8 100%);
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      margin-bottom: 14px;
+      color: white;
+    }
+
+    h1 {
+      margin: 0 0 8px;
+      font-size: clamp(1.8rem, 3vw, 2.6rem);
+    }
+
+    p {
+      margin: 0;
+      color: #cbd5e1;
+      line-height: 1.6;
+    }
+
+    .actions {
+      display: flex;
+      justify-content: center;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-top: 24px;
+    }
+
+    button, .secondary-link {
+      border: 0;
+      border-radius: 999px;
+      padding: 12px 18px;
+      font-weight: 600;
+      text-decoration: none;
+      cursor: pointer;
+      transition: transform 0.2s ease, opacity 0.2s ease;
+    }
+
+    button:hover, .secondary-link:hover {
+      transform: translateY(-1px);
+      opacity: 0.95;
+    }
+
+    button {
+      background: linear-gradient(135deg, #2DE1B0 0%, #1A73E8 100%);
+      color: white;
+    }
+
+    .secondary-link {
+      background: rgba(255,255,255,0.08);
+      color: #f8fafc;
+    }
+
+    .ads {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin-top: 24px;
+    }
+
+    .ad-card {
+      border-radius: 16px;
+      padding: 18px;
+      border: 1px solid rgba(255,255,255,0.08);
+      background: rgba(255,255,255,0.04);
+      min-height: 140px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      text-align: center;
+    }
+
+    .ad-card strong {
+      display: block;
+      margin-bottom: 6px;
+      font-size: 1rem;
+    }
+
+    .ad-card span {
+      color: #94a3b8;
+      font-size: 0.95rem;
+    }
+
+    #splash {
+      position: fixed;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #000;
+      z-index: 9999;
+    }
+
+    .splash-text {
+      color: white;
+      font-size: 1.25rem;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+
+    @media (max-width: 700px) {
+      .ads { grid-template-columns: 1fr; }
+      .app-shell { padding: 24px; }
+    }
+  </style>
+
+  <script>
+    function removeSplashFromWeb() {
+      const splash = document.getElementById('splash');
+      if (splash) splash.remove();
+      document.body.style.background = 'transparent';
+    }
+
+    function openAiMode() {
+      if (window.FlutterInterface && typeof window.FlutterInterface.postMessage === 'function') {
+        window.FlutterInterface.postMessage('open_ai_chat');
+      } else {
+        console.info('Flutter interface not ready. AI Mode will open when the app is running inside Nexa.');
+      }
+    }
+
+    document.addEventListener('DOMContentLoaded', function () {
+      removeSplashFromWeb();
+      const aiButton = document.getElementById('ai-mode-btn');
+      if (aiButton) {
+        aiButton.addEventListener('click', openAiMode);
+      }
+    });
+  </script>
+  
+  
+  
+  
+  <style id="splash-screen-style">
+    html {
+      height: 100%
+    }
+
+    body {
+      margin: 0;
+      min-height: 100%;
+      background-color: #000000;
+          background-size: 100% 100%;
+    }
+
+    .center {
+      margin: 0;
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      -ms-transform: translate(-50%, -50%);
+      transform: translate(-50%, -50%);
+    }
+
+    .contain {
+      display:block;
+      width:100%; height:100%;
+      object-fit: contain;
+    }
+
+    .stretch {
+      display:block;
+      width:100%; height:100%;
+    }
+
+    .cover {
+      display:block;
+      width:100%; height:100%;
+      object-fit: cover;
+    }
+
+    .bottom {
+      position: absolute;
+      bottom: 0;
+      left: 50%;
+      -ms-transform: translate(-50%, 0);
+      transform: translate(-50%, 0);
+    }
+
+    .bottomLeft {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+    }
+
+    .bottomRight {
+      position: absolute;
+      bottom: 0;
+      right: 0;
+    }
+  </style>
+  <script id="splash-screen-script">
+    function removeSplashFromWeb() {
+      document.getElementById("splash")?.remove();
+      document.getElementById("splash-branding")?.remove();
+      document.body.style.background = "transparent";
+    }
+  </script>
+</head>
+<body>
+  <picture id="splash">
+      <source srcset="splash/img/light-1x.png 1x, splash/img/light-2x.png 2x, splash/img/light-3x.png 3x, splash/img/light-4x.png 4x" media="(prefers-color-scheme: light)">
+      <source srcset="splash/img/dark-1x.png 1x, splash/img/dark-2x.png 2x, splash/img/dark-3x.png 3x, splash/img/dark-4x.png 4x" media="(prefers-color-scheme: dark)">
+      <img class="center" aria-hidden="true" src="splash/img/light-1x.png" alt="">
+  </picture>
+  
+  
+  
+
+  <main class="app-shell">
+    <section class="hero">
+      <div class="badge">Nexa</div>
+      <h1>Fast, focused browsing</h1>
+      <p>Open AI Mode or jump into your favorite sites from a cleaner home screen.</p>
+      <div class="actions">
+        <button id="ai-mode-btn" type="button">AI Mode</button>
+        <a class="secondary-link" href="https://nexa-home-orpin.vercel.app/">Open Home</a>
+      </div>
+    </section>
+
+    <section class="ads" aria-label="Advertising placeholders">
+      <div class="ad-card">
+        <strong>Native Banner Placeholder</strong>
+        <span>Slot 1</span>
+      </div>
+      <div class="ad-card">
+        <strong>300×250 Ad Placeholder</strong>
+        <span>Mobile-friendly</span>
+      </div>
+    </section>
+  </main>
+
+  <script src="flutter_bootstrap.js" async=""></script>
+
+
+</body></html>

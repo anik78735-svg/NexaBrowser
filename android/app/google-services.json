@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "572356555340",
+    "project_id": "nexa-browser-1494a",
+    "storage_bucket": "nexa-browser-1494a.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:572356555340:android:6c2bc7ea51eef14df57ae9",
+        "android_client_info": {
+          "package_name": "com.example.mobile_browser"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "572356555340-toqif9hkruccljlceop8u1ktv7vbc7j4.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.mobile_browser",
+            "certificate_hash": "352926c4a8552f75c46fd0373949666845f8ad2e"
+          }
+        },
+        {
+          "client_id": "572356555340-92na943m0m7np1pudjthhqkbpom29pa9.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBePqBcLb_xIqiHovqCPekzZWn--a176yI"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "572356555340-92na943m0m7np1pudjthhqkbpom29pa9.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
