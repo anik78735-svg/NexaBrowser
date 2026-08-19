@@ -6,6 +6,14 @@ import '../models/history_entry.dart';
 class HistoryService {
   static Database? _db;
 
+  // An older build's "New Tab" used to load this hosted Vercel page as
+  // the home page (instead of today's native NewTabPage). Devices that
+  // were on that build have real History rows pointing at it, which is
+  // why it kept showing up as a duplicated "Nexa New Tab" suggestion in
+  // the address bar and as a stale shortcut on the home screen even
+  // though nothing in the current app ever navigates there anymore.
+  static const String _legacyHomeUrlHost = 'nexa-home-iota.vercel.app';
+
   static Future<Database> get database async {
     if (_db != null) return _db!;
 
@@ -27,6 +35,21 @@ class HistoryService {
     );
 
     return _db!;
+  }
+
+  //---------------------------------------------------------------------
+  // One-time cleanup for devices upgrading from the old build that used
+  // the hosted Vercel page as "home" — removes those leftover rows so
+  // they stop appearing as duplicated suggestions / shortcuts. Safe to
+  // call on every app start; it's a no-op once those rows are gone.
+  //---------------------------------------------------------------------
+  static Future<void> purgeLegacyHomeUrl() async {
+    final db = await database;
+    await db.delete(
+      'history',
+      where: 'url LIKE ?',
+      whereArgs: ['%$_legacyHomeUrlHost%'],
+    );
   }
 
   static Future<void> addEntry(String title, String url) async {
@@ -136,6 +159,7 @@ class HistoryService {
   for (final row in raw) {
     final url = row['url'] as String;
     if (_isSearchResultUrl(url)) continue;
+    if (url.contains(_legacyHomeUrlHost)) continue;
 
     final domain = _extractDomain(url);
     if (domain.isEmpty) continue;
@@ -175,16 +199,38 @@ static String _extractDomain(String url) {
   }
 }
 
+  //---------------------------------------------------------------------
+  // Address bar / New Tab search suggestions. Deduplicated by URL — the
+  // dedup in addEntry() only collapses repeat visits that land within
+  // 10 seconds of each other, so revisiting the same page later in the
+  // day still adds a new row and the raw query used to return the same
+  // URL multiple times in a row here (e.g. three identical "Nexa New
+  // Tab" suggestions). Keeping only the most recent row per URL fixes
+  // that without touching History itself, where every visit should
+  // still count.
+  //---------------------------------------------------------------------
   static Future<List<Map<String, dynamic>>> searchHistory(String query) async {
     await _cleanOldEntries();
     final db = await database;
-    if (query.trim().isEmpty) {
-      return db.query('history', orderBy: 'visitedAt DESC', limit: 20);
+    final rows = query.trim().isEmpty
+        ? await db.query('history', orderBy: 'visitedAt DESC', limit: 60)
+        : await db.query(
+            'history',
+            where: 'title LIKE ? OR url LIKE ?',
+            whereArgs: ['%$query%', '%$query%'],
+            orderBy: 'visitedAt DESC',
+            limit: 60,
+          );
+
+    final seenUrls = <String>{};
+    final deduped = <Map<String, dynamic>>[];
+    for (final row in rows) {
+      final url = row['url'] as String;
+      if (url.contains(_legacyHomeUrlHost)) continue;
+      if (!seenUrls.add(url)) continue;
+      deduped.add(row);
+      if (deduped.length >= 20) break;
     }
-    return db.query('history',
-        where: 'title LIKE ? OR url LIKE ?',
-        whereArgs: ['%$query%', '%$query%'],
-        orderBy: 'visitedAt DESC',
-        limit: 20);
+    return deduped;
   }
 }

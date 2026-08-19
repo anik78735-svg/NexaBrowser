@@ -14,12 +14,6 @@ class BrowserTab {
   bool isIncognito;
   bool isDesktopMode;
 
-  // Tracks whether this tab's WebView is currently scrolled all the way
-  // to the top. Pull-to-refresh is only enabled while this is true, so
-  // a normal upward scroll on a page that's already midway down doesn't
-  // get mistaken for a refresh gesture (see browser_home.dart).
-  bool isAtTop = true;
-
   BrowserTab({
     this.title = "New Tab",
     this.url = kNexaNewTabUrl,

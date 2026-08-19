@@ -55,19 +55,21 @@ class _AIChatScreenState extends State<AIChatScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+
     return Scaffold(
-      backgroundColor: const Color(0xFF0B0B0F),
+      backgroundColor: colors.surface,
       appBar: AppBar(
         title: const Text("nexa. AI"),
-        backgroundColor: const Color(0xFF202124),
+        backgroundColor: colors.surface,
       ),
       body: Column(
         children: [
           Expanded(
             child: messages.isEmpty
-                ? const Center(
+                ? Center(
                     child: Text("Ask me anything",
-                        style: TextStyle(color: Colors.grey)),
+                        style: TextStyle(color: colors.onSurfaceVariant)),
                   )
                 : ListView.builder(
                     controller: scrollController,
@@ -89,7 +91,7 @@ class _AIChatScreenState extends State<AIChatScreen> {
                           decoration: BoxDecoration(
                             color: msg.isUser
                                 ? accent.withOpacity(0.15)
-                                : const Color(0xFF2A2A2E),
+                                : colors.surfaceContainerHigh,
                             borderRadius: BorderRadius.circular(14),
                             border: msg.isUser
                                 ? Border.all(color: accent.withOpacity(0.4))
@@ -97,7 +99,7 @@ class _AIChatScreenState extends State<AIChatScreen> {
                           ),
                           child: Text(
                             msg.text,
-                            style: const TextStyle(color: Colors.white, fontSize: 14),
+                            style: TextStyle(color: colors.onSurface, fontSize: 14),
                           ),
                         ),
                       );
@@ -126,15 +128,15 @@ class _AIChatScreenState extends State<AIChatScreen> {
                     child: Container(
                       padding: const EdgeInsets.symmetric(horizontal: 14),
                       decoration: BoxDecoration(
-                        color: const Color(0xFF2A2A2E),
+                        color: colors.surfaceContainerHigh,
                         borderRadius: BorderRadius.circular(24),
                       ),
                       child: TextField(
                         controller: controller,
-                        style: const TextStyle(color: Colors.white),
-                        decoration: const InputDecoration(
+                        style: TextStyle(color: colors.onSurface),
+                        decoration: InputDecoration(
                           hintText: "Message nexa. AI",
-                          hintStyle: TextStyle(color: Colors.grey),
+                          hintStyle: TextStyle(color: colors.onSurfaceVariant),
                           border: InputBorder.none,
                         ),
                         onSubmitted: (_) => _send(),

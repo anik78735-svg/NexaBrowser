@@ -21,7 +21,10 @@ class TabSwitcherScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+
     return Scaffold(
+      backgroundColor: colors.surface,
       appBar: AppBar(
         title: Text("${tabs.length} Tabs"),
         actions: [
@@ -53,18 +56,15 @@ class TabSwitcherScreen extends StatelessWidget {
             child: Container(
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(12),
-
-                // UPDATED BORDER
                 border: Border.all(
                   color: isActive
                       ? (tab.isIncognito
                           ? Colors.purpleAccent
-                          : Colors.blueAccent)
-                      : Colors.grey.shade800,
+                          : colors.primary)
+                      : colors.outlineVariant,
                   width: isActive ? 2 : 1,
                 ),
-
-                color: const Color(0xFF303134),
+                color: colors.surfaceContainerHigh,
               ),
               child: Column(
                 children: [
@@ -82,7 +82,7 @@ class TabSwitcherScreen extends StatelessWidget {
                           size: 14,
                           color: tab.isIncognito
                               ? Colors.purpleAccent
-                              : Colors.grey,
+                              : colors.onSurfaceVariant,
                         ),
                         const SizedBox(width: 6),
                         Expanded(
@@ -90,18 +90,18 @@ class TabSwitcherScreen extends StatelessWidget {
                             tab.title,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              color: Colors.white,
+                            style: TextStyle(
+                              color: colors.onSurface,
                               fontSize: 11,
                             ),
                           ),
                         ),
                         GestureDetector(
                           onTap: () => onCloseTab(index),
-                          child: const Icon(
+                          child: Icon(
                             Icons.close,
                             size: 16,
-                            color: Colors.grey,
+                            color: colors.onSurfaceVariant,
                           ),
                         ),
                       ],
@@ -112,14 +112,20 @@ class TabSwitcherScreen extends StatelessWidget {
                       borderRadius: const BorderRadius.vertical(
                         bottom: Radius.circular(11),
                       ),
+                      // Real page thumbnail, captured after each page load
+                      // (see browser_home.dart onLoadStop) — falls back to
+                      // a plain icon only for tabs that haven't loaded a
+                      // page yet (e.g. a freshly-opened tab still on the
+                      // native New Tab page).
                       child: tab.thumbnail != null
                           ? Image.memory(
                               tab.thumbnail!,
                               fit: BoxFit.cover,
                               width: double.infinity,
+                              gaplessPlayback: true,
                             )
                           : Container(
-                              color: const Color(0xFF202124),
+                              color: colors.surfaceContainerHighest,
                               alignment: Alignment.center,
                               child: Icon(
                                 tab.isIncognito
@@ -127,7 +133,7 @@ class TabSwitcherScreen extends StatelessWidget {
                                     : Icons.public,
                                 color: tab.isIncognito
                                     ? Colors.purpleAccent
-                                    : Colors.grey,
+                                    : colors.onSurfaceVariant,
                                 size: 32,
                               ),
                             ),

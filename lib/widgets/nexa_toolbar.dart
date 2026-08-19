@@ -11,6 +11,14 @@ class NexaToolbar extends StatelessWidget implements PreferredSizeWidget {
   final VoidCallback onMenuTap;
   final bool isIncognito;
 
+  // True while the active tab is showing the native New Tab / home page,
+  // which already has its own large "Search Nexa or type a URL" pill.
+  // When true, this toolbar's own address chip is rendered as a compact
+  // icon-only button instead of repeating the exact same placeholder
+  // text — otherwise the home page visibly showed two search bars
+  // stacked on top of each other with identical text.
+  final bool isHomePage;
+
   const NexaToolbar({
     super.key,
     required this.onHome,
@@ -21,6 +29,7 @@ class NexaToolbar extends StatelessWidget implements PreferredSizeWidget {
     required this.onTabSwitcherTap,
     required this.onMenuTap,
     this.isIncognito = false,
+    this.isHomePage = false,
   });
 
   @override
@@ -49,41 +58,51 @@ class NexaToolbar extends StatelessWidget implements PreferredSizeWidget {
               Expanded(
                 child: GestureDetector(
                   onTap: onAddressTap,
-                  child: Container(
-                    height: 38,
-                    padding: const EdgeInsets.symmetric(horizontal: 12),
-                    decoration: BoxDecoration(
-                      color: colors.surfaceContainerHigh,
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Row(
-                      children: [
-                        Icon(
-                          addressText.startsWith('https://')
-                              ? Icons.lock_outline_rounded
-                              : Icons.search_rounded,
-                          size: 14,
-                          color: colors.onSurfaceVariant,
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            addressText.isEmpty
-                                ? "Search Nexa or type a URL"
-                                : addressText,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              color: addressText.isEmpty
-                                  ? colors.onSurfaceVariant
-                                  : colors.onSurface,
-                              fontSize: 13,
-                            ),
+                  child: isHomePage
+                      ? Container(
+                          height: 38,
+                          alignment: Alignment.centerLeft,
+                          child: Icon(
+                            Icons.search_rounded,
+                            size: 18,
+                            color: colors.onSurfaceVariant,
+                          ),
+                        )
+                      : Container(
+                          height: 38,
+                          padding: const EdgeInsets.symmetric(horizontal: 12),
+                          decoration: BoxDecoration(
+                            color: colors.surfaceContainerHigh,
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(
+                                addressText.startsWith('https://')
+                                    ? Icons.lock_outline_rounded
+                                    : Icons.search_rounded,
+                                size: 14,
+                                color: colors.onSurfaceVariant,
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  addressText.isEmpty
+                                      ? "Search Nexa or type a URL"
+                                      : addressText,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    color: addressText.isEmpty
+                                        ? colors.onSurfaceVariant
+                                        : colors.onSurface,
+                                    fontSize: 13,
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
                         ),
-                      ],
-                    ),
-                  ),
                 ),
               ),
               IconButton(

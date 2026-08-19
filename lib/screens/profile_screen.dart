@@ -14,12 +14,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Future<void> _signIn() async {
     setState(() => _loading = true);
-    final user = await AuthService.signInWithGoogle();
+    final result = await AuthService.signInWithGoogle();
     if (!mounted) return;
     setState(() => _loading = false);
-    if (user == null) {
+    if (result.user == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Sign in cancelled or failed")),
+        SnackBar(content: Text(result.errorMessage ?? "Sign in cancelled or failed")),
       );
     }
   }
@@ -33,11 +33,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Widget build(BuildContext context) {
     final User? user = FirebaseAuth.instance.currentUser;
 
+    final colors = Theme.of(context).colorScheme;
+
     return Scaffold(
-      backgroundColor: const Color(0xFF0B0B0F),
+      backgroundColor: colors.surface,
       appBar: AppBar(
         title: const Text('Profile'),
-        backgroundColor: const Color(0xFF202124),
+        backgroundColor: colors.surface,
       ),
       body: Center(
         child: user != null
@@ -55,12 +57,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   const SizedBox(height: 16),
                   Text(
                     user.displayName ?? "No name",
-                    style: const TextStyle(color: Colors.white, fontSize: 18),
+                    style: TextStyle(color: colors.onSurface, fontSize: 18),
                   ),
                   const SizedBox(height: 4),
                   Text(
                     user.email ?? "",
-                    style: const TextStyle(color: Colors.grey, fontSize: 14),
+                    style: TextStyle(color: colors.onSurfaceVariant, fontSize: 14),
                   ),
                   const SizedBox(height: 24),
                   ElevatedButton(
@@ -72,11 +74,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
             : Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Icon(Icons.account_circle_outlined, color: Colors.white, size: 56),
+                  Icon(Icons.account_circle_outlined, color: colors.onSurface, size: 56),
                   const SizedBox(height: 16),
-                  const Text(
+                  Text(
                     "You're not signed in",
-                    style: TextStyle(color: Colors.white, fontSize: 16),
+                    style: TextStyle(color: colors.onSurface, fontSize: 16),
                   ),
                   const SizedBox(height: 20),
                   ElevatedButton(

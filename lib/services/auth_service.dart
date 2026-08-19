@@ -1,5 +1,16 @@
+import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
+
+/// Result of a sign-in attempt. [user] is non-null only on success;
+/// otherwise [errorMessage] explains what went wrong so the UI can show
+/// something more useful than a generic "cancelled or failed" snackbar.
+class SignInResult {
+  final User? user;
+  final String? errorMessage;
+  const SignInResult({this.user, this.errorMessage});
+}
 
 class AuthService {
   //---------------------------------------------------------------------
@@ -24,10 +35,23 @@ class AuthService {
 
   static bool get isSignedIn => currentUser != null;
 
-  /// Returns the signed-in Firebase user, or null if the user cancelled
-  /// or sign-in failed.
-  static Future<User?> signInWithGoogle() async {
-    await _ensureInitialized();
+  /// Attempts Google sign-in. On failure, [SignInResult.errorMessage] carries
+  /// a human-readable reason instead of silently swallowing the exception —
+  /// the previous version returned null for every failure (including real
+  /// config errors), which is why sign-in looked like it was permanently
+  /// "cancelled or failed" with no way to tell why.
+  static Future<SignInResult> signInWithGoogle() async {
+    try {
+      await _ensureInitialized();
+    } catch (e) {
+      debugPrint('AuthService: GoogleSignIn.initialize() failed: $e');
+      return const SignInResult(
+        errorMessage:
+            "Google Sign-In isn't configured correctly for this app build "
+            "(check the web client ID / google-services.json).",
+      );
+    }
+
     try {
       final GoogleSignInAccount account = await _googleSignIn.authenticate();
 
@@ -39,10 +63,37 @@ class AuthService {
 
       final userCredential =
           await FirebaseAuth.instance.signInWithCredential(credential);
-      return userCredential.user;
+      return SignInResult(user: userCredential.user);
+    } on GoogleSignInException catch (e) {
+      debugPrint('AuthService: GoogleSignInException ${e.code}: ${e.description}');
+      if (e.code == GoogleSignInExceptionCode.canceled) {
+        // User closed the account picker — not an error worth surfacing.
+        return const SignInResult();
+      }
+      return SignInResult(
+        errorMessage: "Google Sign-In failed (${e.code.name}). "
+            "This is usually a mismatched SHA-1 fingerprint or package name "
+            "in the Firebase console, not something the app itself can fix.",
+      );
+    } on PlatformException catch (e) {
+      // code 10 = DEVELOPER_ERROR: almost always a SHA-1 certificate
+      // fingerprint (debug vs release keystore) that isn't registered
+      // for this app in the Firebase / Google Cloud console, or an
+      // applicationId that doesn't match google-services.json.
+      debugPrint('AuthService: PlatformException ${e.code}: ${e.message}');
+      final hint = e.code == '10' || e.code == 'sign_in_failed'
+          ? " (code ${e.code}: likely a SHA-1 fingerprint not registered "
+              "for this build's keystore in the Firebase console)"
+          : " (code ${e.code})";
+      return SignInResult(errorMessage: "Google Sign-In failed$hint.");
+    } on FirebaseAuthException catch (e) {
+      debugPrint('AuthService: FirebaseAuthException ${e.code}: ${e.message}');
+      return SignInResult(
+        errorMessage: e.message ?? "Firebase sign-in failed (${e.code}).",
+      );
     } catch (e) {
-      // User cancelled the picker, or sign-in failed.
-      return null;
+      debugPrint('AuthService: sign-in failed: $e');
+      return SignInResult(errorMessage: "Sign-in failed: $e");
     }
   }
 

@@ -27,8 +27,10 @@ class _FindInPageBarState extends State<FindInPageBar> {
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+
     return Container(
-      color: const Color(0xFF2A2A2E),
+      color: colors.surfaceContainerHigh,
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
       child: SafeArea(
         top: false,
@@ -39,12 +41,13 @@ class _FindInPageBarState extends State<FindInPageBar> {
               child: TextField(
                 controller: controller,
                 autofocus: true,
-                style: const TextStyle(color: Colors.white, fontSize: 14),
-                decoration: const InputDecoration(
+                style: TextStyle(color: colors.onSurface, fontSize: 14),
+                decoration: InputDecoration(
                   hintText: "Find in page",
-                  hintStyle: TextStyle(color: Colors.grey),
+                  hintStyle: TextStyle(color: colors.onSurfaceVariant),
                   border: InputBorder.none,
                   isDense: true,
+                  filled: false,
                 ),
                 onChanged: widget.onSearch,
               ),
@@ -52,18 +55,18 @@ class _FindInPageBarState extends State<FindInPageBar> {
             if (widget.totalMatches > 0)
               Text(
                 "${widget.currentMatch}/${widget.totalMatches}",
-                style: const TextStyle(color: Colors.grey, fontSize: 12),
+                style: TextStyle(color: colors.onSurfaceVariant, fontSize: 12),
               ),
             IconButton(
-              icon: const Icon(Icons.keyboard_arrow_up, color: Colors.white, size: 20),
+              icon: Icon(Icons.keyboard_arrow_up, color: colors.onSurface, size: 20),
               onPressed: widget.onPrevious,
             ),
             IconButton(
-              icon: const Icon(Icons.keyboard_arrow_down, color: Colors.white, size: 20),
+              icon: Icon(Icons.keyboard_arrow_down, color: colors.onSurface, size: 20),
               onPressed: widget.onNext,
             ),
             IconButton(
-              icon: const Icon(Icons.close, color: Colors.white, size: 20),
+              icon: Icon(Icons.close, color: colors.onSurface, size: 20),
               onPressed: widget.onClose,
             ),
           ],

@@ -30,11 +30,11 @@ class _OnboardingSignupScreenState extends State<OnboardingSignupScreen> {
 
   Future<void> _signUp() async {
     setState(() => _loading = true);
-    final user = await AuthService.signInWithGoogle();
+    final result = await AuthService.signInWithGoogle();
     if (!mounted) return;
     setState(() => _loading = false);
 
-    if (user != null) {
+    if (result.user != null) {
       // Signed up successfully -> show the sync screen next.
       Navigator.pushReplacement(
         context,
@@ -42,7 +42,7 @@ class _OnboardingSignupScreenState extends State<OnboardingSignupScreen> {
       );
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Sign up cancelled or failed")),
+        SnackBar(content: Text(result.errorMessage ?? "Sign up cancelled or failed")),
       );
     }
   }

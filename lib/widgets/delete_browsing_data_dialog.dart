@@ -58,7 +58,7 @@ Future<DeleteBrowsingDataResult?> showDeleteBrowsingDataDialog(
 }) {
   return showModalBottomSheet<DeleteBrowsingDataResult>(
     context: context,
-    backgroundColor: const Color(0xFF2A2A2E),
+    backgroundColor: Theme.of(context).colorScheme.surfaceContainerHigh,
     isScrollControlled: true,
     shape: const RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
@@ -84,6 +84,8 @@ class _DeleteBrowsingDataSheetState extends State<_DeleteBrowsingDataSheet> {
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+
     return SafeArea(
       child: Padding(
         padding: const EdgeInsets.fromLTRB(20, 20, 20, 20),
@@ -91,17 +93,17 @@ class _DeleteBrowsingDataSheetState extends State<_DeleteBrowsingDataSheet> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
+            Text(
               "Delete browsing data",
-              style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.w500),
+              style: TextStyle(color: colors.onSurface, fontSize: 22, fontWeight: FontWeight.w500),
             ),
             const SizedBox(height: 18),
             DropdownButtonHideUnderline(
               child: DropdownButton<DeleteTimeRange>(
                 value: _range,
-                dropdownColor: const Color(0xFF3C3C40),
-                style: const TextStyle(color: Color(0xFF8AB4F8), fontSize: 15),
-                icon: const Icon(Icons.arrow_drop_down, color: Color(0xFF8AB4F8)),
+                dropdownColor: colors.surfaceContainerHighest,
+                style: TextStyle(color: colors.primary, fontSize: 15),
+                icon: Icon(Icons.arrow_drop_down, color: colors.primary),
                 items: DeleteTimeRange.values
                     .map((r) => DropdownMenuItem(value: r, child: Text(r.label)))
                     .toList(),
@@ -137,29 +139,29 @@ class _DeleteBrowsingDataSheetState extends State<_DeleteBrowsingDataSheet> {
                 padding: const EdgeInsets.symmetric(vertical: 12),
                 child: Row(
                   children: [
-                    const Expanded(
-                      child: Text("More options", style: TextStyle(color: Colors.white, fontSize: 15)),
+                    Expanded(
+                      child: Text("More options", style: TextStyle(color: colors.onSurface, fontSize: 15)),
                     ),
                     Icon(
                       _showMoreOptions ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_right,
-                      color: Colors.white,
+                      color: colors.onSurface,
                     ),
                   ],
                 ),
               ),
             ),
             if (_showMoreOptions)
-              const Padding(
-                padding: EdgeInsets.only(bottom: 8),
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8),
                 child: Text(
                   "Passwords, autofill data and site settings are not affected.",
-                  style: TextStyle(color: Colors.grey, fontSize: 13),
+                  style: TextStyle(color: colors.onSurfaceVariant, fontSize: 13),
                 ),
               ),
             const SizedBox(height: 12),
-            const Text(
+            Text(
               "Search history and other forms of activity may be saved in your Google Account",
-              style: TextStyle(color: Colors.grey, fontSize: 13, height: 1.4),
+              style: TextStyle(color: colors.onSurfaceVariant, fontSize: 13, height: 1.4),
             ),
             const SizedBox(height: 20),
             Row(
@@ -167,12 +169,12 @@ class _DeleteBrowsingDataSheetState extends State<_DeleteBrowsingDataSheet> {
               children: [
                 TextButton(
                   onPressed: () => Navigator.pop(context),
-                  child: const Text("Cancel", style: TextStyle(color: Color(0xFF8AB4F8))),
+                  child: Text("Cancel", style: TextStyle(color: colors.primary)),
                 ),
                 const SizedBox(width: 8),
                 ElevatedButton(
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF8AB4F8),
+                    backgroundColor: colors.primary,
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
                   ),
                   onPressed: () {
@@ -186,7 +188,7 @@ class _DeleteBrowsingDataSheetState extends State<_DeleteBrowsingDataSheet> {
                       ),
                     );
                   },
-                  child: const Text("Delete data", style: TextStyle(color: Colors.black)),
+                  child: Text("Delete data", style: TextStyle(color: colors.onPrimary)),
                 ),
               ],
             ),
@@ -203,36 +205,39 @@ class _DeleteBrowsingDataSheetState extends State<_DeleteBrowsingDataSheet> {
     required bool value,
     required ValueChanged<bool> onChanged,
   }) {
-    return InkWell(
-      onTap: () => onChanged(!value),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 6),
-        child: Row(
-          children: [
-            Icon(icon, color: Colors.white70, size: 22),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(title, style: const TextStyle(color: Colors.white, fontSize: 15)),
-                  if (subtitle != null)
-                    Text(subtitle, style: const TextStyle(color: Colors.grey, fontSize: 12)),
-                ],
+    return Builder(builder: (context) {
+      final colors = Theme.of(context).colorScheme;
+      return InkWell(
+        onTap: () => onChanged(!value),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 6),
+          child: Row(
+            children: [
+              Icon(icon, color: colors.onSurfaceVariant, size: 22),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(title, style: TextStyle(color: colors.onSurface, fontSize: 15)),
+                    if (subtitle != null)
+                      Text(subtitle, style: TextStyle(color: colors.onSurfaceVariant, fontSize: 12)),
+                  ],
+                ),
               ),
-            ),
-            Checkbox(
-              value: value,
-              onChanged: (v) => onChanged(v ?? false),
-              fillColor: WidgetStateProperty.resolveWith(
-                (states) => states.contains(WidgetState.selected)
-                    ? const Color(0xFF8AB4F8)
-                    : Colors.transparent,
+              Checkbox(
+                value: value,
+                onChanged: (v) => onChanged(v ?? false),
+                fillColor: WidgetStateProperty.resolveWith(
+                  (states) => states.contains(WidgetState.selected)
+                      ? colors.primary
+                      : Colors.transparent,
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
-      ),
-    );
+      );
+    });
   }
 }

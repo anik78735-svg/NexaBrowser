@@ -2,7 +2,6 @@ import 'dart:collection';
 import 'package:flutter/material.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:flutter/services.dart';
-import 'package:pull_to_refresh_flutter3/pull_to_refresh_flutter3.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/browser_tab.dart';
 import '../models/bookmark.dart';
@@ -31,6 +30,7 @@ import '../widgets/default_browser_prompt.dart';
 import 'help_feedback_screen.dart';
 import 'incognito_home_page.dart';
 import '../services/screenshot_blocker_service.dart';
+import '../theme_controller.dart';
 
 class BrowserHome extends StatefulWidget {
   const BrowserHome({super.key});
@@ -76,17 +76,63 @@ class _BrowserHomeState extends State<BrowserHome> {
   // User-Agent and useWideViewPort/loadWithOverviewMode are already set
   // for desktop. Used by _toggleDesktopMode() and onLoadStop() below.
   //---------------------------------------------------------------------
+  //---------------------------------------------------------------------
+  // Deliberately does NOT hard-code "initial-scale=1": that forced the
+  // page to render at a literal 1:1 pixel scale, so a 1280px-wide
+  // desktop layout simply ran off the right edge of a ~360-410px-wide
+  // phone screen (cut-off text, no ability to see the rest without a
+  // manual pinch-zoom or a reload — matches the "desktop mode looks
+  // broken, needs a refresh to fix itself" report). Instead this
+  // computes the actual scale needed to fit the 1280px layout to the
+  // device's real screen width and sets that as initial-scale, which is
+  // what "Desktop site" does in real Chrome/Brave/etc — the whole
+  // desktop page shrinks to fit, in view immediately, no reload needed.
+  //---------------------------------------------------------------------
   static const String _forceDesktopViewportScript = '''
 (function() {
+  var DESKTOP_WIDTH = 1280;
+  var deviceWidth = window.screen && window.screen.width ? window.screen.width : window.innerWidth;
+  var scale = Math.min(1, deviceWidth / DESKTOP_WIDTH);
+  if (!isFinite(scale) || scale <= 0) scale = 0.3;
+
   var meta = document.querySelector('meta[name="viewport"]');
   if (!meta) {
     meta = document.createElement('meta');
     meta.name = 'viewport';
     document.head.appendChild(meta);
   }
-  meta.setAttribute('content', 'width=1280, initial-scale=1');
+  meta.setAttribute(
+    'content',
+    'width=' + DESKTOP_WIDTH + ', initial-scale=' + scale + ', minimum-scale=' + scale + ', user-scalable=yes'
+  );
 })();
 ''';
+
+  //---------------------------------------------------------------------
+  // Makes the loaded page follow the app's own Light/Dark choice instead
+  // of the device's OS-level dark mode setting. Sites like Google use
+  // the CSS `prefers-color-scheme` media query, which reads the OS
+  // setting directly — completely independent of what theme is picked
+  // inside Nexa's Settings > Appearance, which is why switching the app
+  // to Light didn't change Google results (or other theme-aware sites)
+  // back to a light look. Setting the `color-scheme` meta/CSS property
+  // is the standard way sites let a host app override that.
+  //---------------------------------------------------------------------
+  static String _forceColorSchemeScript(bool dark) {
+    final scheme = dark ? 'dark' : 'light';
+    return '''
+(function() {
+  var meta = document.querySelector('meta[name="color-scheme"]');
+  if (!meta) {
+    meta = document.createElement('meta');
+    meta.name = 'color-scheme';
+    document.head.appendChild(meta);
+  }
+  meta.setAttribute('content', '$scheme');
+  document.documentElement.style.colorScheme = '$scheme';
+})();
+''';
+  }
 
   //---------------------------------------------------------------------
   // Defines window.FlutterInterface.postMessage(msg) BEFORE any page
@@ -112,14 +158,31 @@ class _BrowserHomeState extends State<BrowserHome> {
   List<BrowserTab> tabs = [BrowserTab()];
   int activeTabIndex = 0;
 
-  final Map<int, RefreshController> refreshControllers = {};
+  // Native pull-to-refresh, one controller per tab (they all live in an
+  // IndexedStack). Deliberately NOT the old SmartRefresher-wraps-a-WebView
+  // approach: that Flutter-side gesture recognizer sat "on top of" the
+  // WebView PlatformView and won gesture arbitration for almost any
+  // vertical drag near the top of the page, including a normal scroll
+  // back up through a long results page — so scrolling up didn't scroll,
+  // it triggered a refresh instead. flutter_inappwebview's own
+  // PullToRefreshController is wired into the native WebView's real
+  // scroll state on each platform, so it only engages on a genuine
+  // overscroll-at-top gesture and gets out of the way of normal scrolling.
+  final Map<int, PullToRefreshController> pullToRefreshControllers = {};
 
   //---------------------------------------------------------------------
   // Gets (or lazily creates) the pull-to-refresh controller for tab [index].
-  // Each tab needs its own controller since they all live in an IndexedStack.
   //---------------------------------------------------------------------
-  RefreshController _getRefreshController(int index) {
-    return refreshControllers.putIfAbsent(index, () => RefreshController());
+  PullToRefreshController _getPullToRefreshController(int index) {
+    return pullToRefreshControllers.putIfAbsent(
+      index,
+      () => PullToRefreshController(
+        settings: PullToRefreshSettings(color: const Color(0xFF2DE1B0)),
+        onRefresh: () async {
+          await tabs[index].controller?.reload();
+        },
+      ),
+    );
   }
 
   BrowserTab get activeTab => tabs[activeTabIndex];
@@ -223,6 +286,11 @@ class _BrowserHomeState extends State<BrowserHome> {
     _loadDefaultDesktopPref();
     _loadAddressBarPref();
     _syncScreenshotBlock();
+    // Re-applies the light/dark color-scheme override (see
+    // _forceColorSchemeScript) to every currently-open page as soon as
+    // the user changes Settings > Appearance, instead of only picking it
+    // up the next time each tab happens to reload.
+    ThemeController.themeMode.addListener(_onThemeChanged);
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       await maybeShowNotificationPrompt(context);
       if (!mounted) return;
@@ -230,6 +298,17 @@ class _BrowserHomeState extends State<BrowserHome> {
       // never race each other for the same frame.
       await maybeShowDefaultBrowserPrompt(context);
     });
+  }
+
+  void _onThemeChanged() {
+    if (!mounted) return;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    for (final tab in tabs) {
+      final controller = tab.controller;
+      if (controller != null && tab.url != kNexaNewTabUrl) {
+        controller.evaluateJavascript(source: _forceColorSchemeScript(isDark));
+      }
+    }
   }
 
   //---------------------------------------------------------------------
@@ -346,8 +425,7 @@ class _BrowserHomeState extends State<BrowserHome> {
   //---------------------------------------------------------------------
   void closeTab(int index) {
     setState(() {
-      refreshControllers[index]?.dispose();
-      refreshControllers.remove(index);
+      pullToRefreshControllers.remove(index);
 
       tabs.removeAt(index);
       if (tabs.isEmpty) {
@@ -674,10 +752,7 @@ class _BrowserHomeState extends State<BrowserHome> {
 
     if (result.clearOpenTabs) {
       setState(() {
-        for (final controller in refreshControllers.values) {
-          controller.dispose();
-        }
-        refreshControllers.clear();
+        pullToRefreshControllers.clear();
         tabs.clear();
         tabs.add(BrowserTab());
         activeTabIndex = 0;
@@ -698,10 +773,8 @@ class _BrowserHomeState extends State<BrowserHome> {
   //---------------------------------------------------------------------
   @override
   void dispose() {
-    for (final controller in refreshControllers.values) {
-      controller.dispose();
-    }
-    refreshControllers.clear();
+    ThemeController.themeMode.removeListener(_onThemeChanged);
+    pullToRefreshControllers.clear();
     urlController.dispose();
     super.dispose();
   }
@@ -742,6 +815,7 @@ class _BrowserHomeState extends State<BrowserHome> {
       onHome: goHome,
       addressText: urlController.text,
       isIncognito: activeTab.isIncognito,
+      isHomePage: activeTab.url == kNexaNewTabUrl,
       onAddressTap: () async {
         final result = await Navigator.push<String>(
           context,
@@ -861,29 +935,13 @@ class _BrowserHomeState extends State<BrowserHome> {
                   );
                 }
 
-                return SmartRefresher(
-                  controller: _getRefreshController(i),
-                  // Pull-to-refresh only engages while the page is
-                  // scrolled all the way to the top (see onScrollChanged
-                  // below). Without this, SmartRefresher can't tell the
-                  // difference between "user is scrolling the page" and
-                  // "user wants to refresh", since the WebView is a
-                  // native platform view and doesn't report its scroll
-                  // position through Flutter's normal scroll
-                  // notifications — every upward drag was being treated
-                  // as a refresh gesture, which also fired onLoadStop a
-                  // second time and duplicated the History entry.
-                  enablePullDown: tab.isAtTop,
-                  onRefresh: () async {
-                    await tab.controller?.reload();
-                    await Future.delayed(const Duration(milliseconds: 800));
-                    _getRefreshController(i).refreshCompleted();
-                  },
-                  header: const WaterDropHeader(
-                    waterDropColor: Color(0xFF2DE1B0),
-                  ),
-                  child: InAppWebView(
+                return InAppWebView(
                     initialUrlRequest: URLRequest(url: WebUri(tab.url)),
+                    // Native pull-to-refresh — see pullToRefreshControllers
+                    // above for why this replaced the old SmartRefresher
+                    // wrapper (that one fought with normal page scrolling
+                    // and turned "scroll up" into "refresh the page").
+                    pullToRefreshController: _getPullToRefreshController(i),
                     //-----------------------------------------------
                     // Injects the FlutterInterface shim (see the
                     // constant above) before ANY page script runs, so
@@ -916,18 +974,6 @@ class _BrowserHomeState extends State<BrowserHome> {
                           return null;
                         },
                       );
-                    },
-                    //-----------------------------------------------
-                    // Tracks whether this tab's page is scrolled to the
-                    // top, to gate pull-to-refresh (see enablePullDown
-                    // above). Only calls setState when the at-top state
-                    // actually flips, not on every scroll pixel.
-                    //-----------------------------------------------
-                    onScrollChanged: (controller, x, y) {
-                      final atTop = y <= 0;
-                      if (atTop != tab.isAtTop) {
-                        setState(() => tab.isAtTop = atTop);
-                      }
                     },
                     //-----------------------------------------------
                     // Drives the top loading progress bar.
@@ -1072,6 +1118,14 @@ class _BrowserHomeState extends State<BrowserHome> {
                         );
                       }
 
+                      if (mounted) {
+                        await controller.evaluateJavascript(
+                          source: _forceColorSchemeScript(
+                            Theme.of(context).brightness == Brightness.dark,
+                          ),
+                        );
+                      }
+
                       // Wait for the page to settle before capturing, so the
                       // screenshot isn't taken mid-render (blank/partial).
                       await Future.delayed(const Duration(milliseconds: 300));
@@ -1091,9 +1145,12 @@ class _BrowserHomeState extends State<BrowserHome> {
                       if (i == activeTabIndex) {
                         _checkBookmarkStatus();
                       }
+
+                      // Tell the native pull-to-refresh spinner the
+                      // refresh (if one was in progress) is done.
+                      _getPullToRefreshController(i).endRefreshing();
                     },
-                  ),
-                );
+                  );
               }).toList(),
             ),
           ),
