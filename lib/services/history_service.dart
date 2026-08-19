@@ -32,10 +32,35 @@ class HistoryService {
   static Future<void> addEntry(String title, String url) async {
     final db = await database;
 
+    // Guards against duplicate rows for the same page: onLoadStop can
+    // legitimately fire more than once for one visit (redirects, a
+    // pull-to-refresh, a same-page navigation), which used to insert a
+    // brand new row every time and made the same URL show up twice in
+    // History / search suggestions. If the very last entry is the same
+    // URL and happened recently, just bump its timestamp instead.
+    final recent = await db.query(
+      'history',
+      orderBy: 'visitedAt DESC',
+      limit: 1,
+    );
+
+    final now = DateTime.now().millisecondsSinceEpoch;
+    if (recent.isNotEmpty &&
+        recent.first['url'] == url &&
+        now - (recent.first['visitedAt'] as int) < 10000) {
+      await db.update(
+        'history',
+        {'visitedAt': now, 'title': title},
+        where: 'id = ?',
+        whereArgs: [recent.first['id']],
+      );
+      return;
+    }
+
     await db.insert('history', {
       'title': title,
       'url': url,
-      'visitedAt': DateTime.now().millisecondsSinceEpoch,
+      'visitedAt': now,
     });
 
     await _cleanOldEntries();

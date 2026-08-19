@@ -9,8 +9,6 @@ class NexaToolbar extends StatelessWidget implements PreferredSizeWidget {
   final int tabCount;
   final VoidCallback onTabSwitcherTap;
   final VoidCallback onMenuTap;
-
-  // NEW
   final bool isIncognito;
 
   const NexaToolbar({
@@ -30,15 +28,22 @@ class NexaToolbar extends StatelessWidget implements PreferredSizeWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+
     return SafeArea(
       child: Container(
-        color: isIncognito ? const Color(0xFF2B1B3D) : null,
+        // Fully theme-driven: light mode -> white/near-white surface,
+        // dark mode -> the app's dark surface. Incognito tabs get a
+        // distinct purple tint layered on top either way.
+        color: isIncognito
+            ? Color.alphaBlend(const Color(0x332B1B3D), colors.surface)
+            : colors.surface,
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
           child: Row(
             children: [
               IconButton(
-                icon: const Icon(Icons.home, size: 20),
+                icon: Icon(Icons.home, size: 20, color: colors.onSurfaceVariant),
                 onPressed: onHome,
               ),
               Expanded(
@@ -48,15 +53,17 @@ class NexaToolbar extends StatelessWidget implements PreferredSizeWidget {
                     height: 38,
                     padding: const EdgeInsets.symmetric(horizontal: 12),
                     decoration: BoxDecoration(
-                      color: const Color(0xFF303134),
+                      color: colors.surfaceContainerHigh,
                       borderRadius: BorderRadius.circular(20),
                     ),
                     child: Row(
                       children: [
-                        const Icon(
-                          Icons.lock,
+                        Icon(
+                          addressText.startsWith('https://')
+                              ? Icons.lock_outline_rounded
+                              : Icons.search_rounded,
                           size: 14,
-                          color: Colors.grey,
+                          color: colors.onSurfaceVariant,
                         ),
                         const SizedBox(width: 8),
                         Expanded(
@@ -68,8 +75,8 @@ class NexaToolbar extends StatelessWidget implements PreferredSizeWidget {
                             overflow: TextOverflow.ellipsis,
                             style: TextStyle(
                               color: addressText.isEmpty
-                                  ? Colors.grey
-                                  : Colors.white,
+                                  ? colors.onSurfaceVariant
+                                  : colors.onSurface,
                               fontSize: 13,
                             ),
                           ),
@@ -80,33 +87,28 @@ class NexaToolbar extends StatelessWidget implements PreferredSizeWidget {
                 ),
               ),
               IconButton(
-                icon: const Icon(Icons.add, size: 20),
+                icon: Icon(Icons.add, size: 20, color: colors.onSurfaceVariant),
                 onPressed: onNewTab,
               ),
               InkWell(
                 onTap: onTabSwitcherTap,
+                borderRadius: BorderRadius.circular(5),
                 child: Container(
                   width: 24,
                   height: 24,
                   alignment: Alignment.center,
                   decoration: BoxDecoration(
-                    border: Border.all(
-                      color: Colors.grey,
-                      width: 1.2,
-                    ),
+                    border: Border.all(color: colors.onSurfaceVariant, width: 1.2),
                     borderRadius: BorderRadius.circular(5),
                   ),
                   child: Text(
                     "$tabCount",
-                    style: const TextStyle(
-                      fontSize: 10,
-                      color: Colors.white,
-                    ),
+                    style: TextStyle(fontSize: 10, color: colors.onSurface),
                   ),
                 ),
               ),
               IconButton(
-                icon: const Icon(Icons.more_vert, size: 20),
+                icon: Icon(Icons.more_vert, size: 20, color: colors.onSurfaceVariant),
                 onPressed: onMenuTap,
               ),
             ],

@@ -33,21 +33,28 @@ class DefaultBrowserService {
   /// Android: the "Set as default" role-request dialog (or the Default
   /// apps settings screen on older versions).
   /// iOS: the app's own page inside the Settings app.
-  static Future<void> openSettings() async {
+  /// Returns true if some OS screen was actually opened, false if
+  /// nothing on this device/ROM could be reached — callers should show
+  /// manual instructions in that case.
+  static Future<bool> openSettings() async {
     if (Platform.isAndroid) {
       try {
-        await _channel.invokeMethod('openDefaultBrowserSettings');
+        final opened = await _channel.invokeMethod<bool>('openDefaultBrowserSettings');
+        return opened ?? false;
       } catch (_) {
-        // Ignore — the settings tile still shows a manual fallback hint.
+        return false;
       }
-      return;
     }
 
     if (Platform.isIOS) {
       final uri = Uri.parse('app-settings:');
       if (await canLaunchUrl(uri)) {
         await launchUrl(uri);
+        return true;
       }
+      return false;
     }
+
+    return false;
   }
 }

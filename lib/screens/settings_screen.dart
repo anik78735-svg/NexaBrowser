@@ -80,10 +80,30 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Future<void> _setAsDefaultBrowser() async {
-    await DefaultBrowserService.openSettings();
+    final opened = await DefaultBrowserService.openSettings();
+    if (!opened && mounted) {
+      _showManualDefaultBrowserInstructions();
+    }
     // The OS dialog/settings screen is async and may take the user a
     // moment to act on, so re-check status once they're back here.
     if (mounted) _load();
+  }
+
+  void _showManualDefaultBrowserInstructions() {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text("Set Nexa manually"),
+        content: const Text(
+          "This phone's settings app didn't let us jump there directly. "
+          "You can still set it yourself:\n\n"
+          "Settings → Apps → Default apps → Browser app → Nexa Browser",
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("Got it")),
+        ],
+      ),
+    );
   }
 
   Future<void> _toggleHomepage(bool v) async {

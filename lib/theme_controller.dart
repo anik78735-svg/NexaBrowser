@@ -2,11 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class ThemeController {
-  static final ValueNotifier<ThemeMode> themeMode = ValueNotifier(ThemeMode.dark);
+  // Default is Light until the user manually picks Dark (or System) in
+  // Settings > Appearance — matches what was asked for explicitly.
+  static final ValueNotifier<ThemeMode> themeMode = ValueNotifier(ThemeMode.light);
 
   static Future<void> load() async {
     final prefs = await SharedPreferences.getInstance();
-    final saved = prefs.getString('theme_mode') ?? 'dark';
+    final saved = prefs.getString('theme_mode') ?? 'light';
     themeMode.value = _fromString(saved);
   }
 
@@ -18,23 +20,23 @@ class ThemeController {
 
   static ThemeMode _fromString(String s) {
     switch (s) {
-      case 'light':
-        return ThemeMode.light;
+      case 'dark':
+        return ThemeMode.dark;
       case 'system':
         return ThemeMode.system;
       default:
-        return ThemeMode.dark;
+        return ThemeMode.light;
     }
   }
 
   static String _toString(ThemeMode mode) {
     switch (mode) {
-      case ThemeMode.light:
-        return 'light';
+      case ThemeMode.dark:
+        return 'dark';
       case ThemeMode.system:
         return 'system';
       default:
-        return 'dark';
+        return 'light';
     }
   }
 }

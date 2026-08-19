@@ -69,9 +69,30 @@ class _DefaultBrowserPromptCard extends StatelessWidget {
                 ),
                 const SizedBox(width: 6),
                 FilledButton(
-                  onPressed: () {
+                  onPressed: () async {
                     Navigator.pop(context);
-                    DefaultBrowserService.openSettings();
+                    final opened = await DefaultBrowserService.openSettings();
+                    if (!opened && context.mounted) {
+                      showDialog(
+                        context: context,
+                        builder: (ctx) => AlertDialog(
+                          title: const Text("Set Nexa manually"),
+                          content: const Text(
+                            "This phone's settings app didn't let us jump "
+                            "there directly. You can still set it "
+                            "yourself:\n\n"
+                            "Settings → Apps → Default apps → Browser app "
+                            "→ Nexa Browser",
+                          ),
+                          actions: [
+                            TextButton(
+                              onPressed: () => Navigator.pop(ctx),
+                              child: const Text("Got it"),
+                            ),
+                          ],
+                        ),
+                      );
+                    }
                   },
                   child: const Text("Set as default"),
                 ),

@@ -18,12 +18,11 @@ class _SearchScreenState extends State<SearchScreen> {
   bool _speechAvailable = false;
   bool _isListening = false;
 
-  static const Color accent = Color(0xFF2DE1B0);
-
   @override
   void initState() {
     super.initState();
     controller = TextEditingController(text: widget.initialText);
+    controller.addListener(() => setState(() {})); // refreshes the clear (X) button
     _loadSuggestions("");
     _initSpeech();
   }
@@ -72,6 +71,11 @@ class _SearchScreenState extends State<SearchScreen> {
     if (mounted) setState(() => suggestions = results);
   }
 
+  void _clearText() {
+    controller.clear();
+    _loadSuggestions("");
+  }
+
   void _submit(String text) {
     if (text.trim().isEmpty) return;
     _speech.stop();
@@ -81,13 +85,15 @@ class _SearchScreenState extends State<SearchScreen> {
   @override
   void dispose() {
     _speech.stop();
+    controller.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+
     return Scaffold(
-      backgroundColor: const Color(0xFF202124),
       appBar: PreferredSize(
         preferredSize: const Size.fromHeight(56),
         child: SafeArea(
@@ -96,7 +102,7 @@ class _SearchScreenState extends State<SearchScreen> {
             child: Row(
               children: [
                 IconButton(
-                  icon: const Icon(Icons.arrow_back, size: 20),
+                  icon: Icon(Icons.arrow_back, size: 20, color: colors.onSurface),
                   onPressed: () => Navigator.pop(context),
                 ),
                 Expanded(
@@ -104,35 +110,44 @@ class _SearchScreenState extends State<SearchScreen> {
                     height: 40,
                     padding: const EdgeInsets.symmetric(horizontal: 12),
                     decoration: BoxDecoration(
-                      color: const Color(0xFF3C4043),
+                      color: colors.surfaceContainerHigh,
                       borderRadius: BorderRadius.circular(20),
-                      border: Border.all(color: accent, width: 1.2),
+                      border: Border.all(color: colors.primary, width: 1.2),
                       boxShadow: [
-                        BoxShadow(
-                          color: accent.withOpacity(0.15),
-                          blurRadius: 8,
-                        ),
+                        BoxShadow(color: colors.primary.withOpacity(0.15), blurRadius: 8),
                       ],
                     ),
                     child: Row(
                       children: [
-                        const Icon(Icons.search, size: 16, color: Colors.grey),
+                        Icon(Icons.search, size: 16, color: colors.onSurfaceVariant),
                         const SizedBox(width: 8),
                         Expanded(
                           child: TextField(
                             controller: controller,
                             autofocus: true,
-                            style: const TextStyle(color: Colors.white, fontSize: 14),
-                            decoration: const InputDecoration(
+                            style: TextStyle(color: colors.onSurface, fontSize: 14),
+                            decoration: InputDecoration(
                               hintText: "Search Nexa or type a URL",
-                              hintStyle: TextStyle(color: Colors.grey),
+                              hintStyle: TextStyle(color: colors.onSurfaceVariant),
                               border: InputBorder.none,
                               isDense: true,
+                              filled: false,
+                              contentPadding: EdgeInsets.zero,
                             ),
                             onChanged: _loadSuggestions,
                             onSubmitted: _submit,
                           ),
                         ),
+                        //-------------------------------------------
+                        // Clear (X) button — wipes the whole field in
+                        // one tap instead of holding backspace.
+                        //-------------------------------------------
+                        if (controller.text.isNotEmpty)
+                          GestureDetector(
+                            onTap: _clearText,
+                            child: Icon(Icons.close_rounded, size: 18, color: colors.onSurfaceVariant),
+                          ),
+                        const SizedBox(width: 10),
                         GestureDetector(
                           onTap: _toggleListening,
                           child: AnimatedContainer(
@@ -141,13 +156,13 @@ class _SearchScreenState extends State<SearchScreen> {
                             decoration: BoxDecoration(
                               shape: BoxShape.circle,
                               color: _isListening
-                                  ? accent.withOpacity(0.25)
+                                  ? colors.primary.withOpacity(0.2)
                                   : Colors.transparent,
                             ),
                             child: Icon(
                               _isListening ? Icons.mic : Icons.mic_none,
                               size: 18,
-                              color: _isListening ? accent : Colors.grey,
+                              color: _isListening ? colors.primary : colors.onSurfaceVariant,
                             ),
                           ),
                         ),
@@ -165,33 +180,44 @@ class _SearchScreenState extends State<SearchScreen> {
           if (_isListening)
             Container(
               width: double.infinity,
-              color: accent.withOpacity(0.08),
+              color: colors.primary.withOpacity(0.08),
               padding: const EdgeInsets.symmetric(vertical: 10),
-              child: const Text(
+              child: Text(
                 "Listening...",
                 textAlign: TextAlign.center,
-                style: TextStyle(color: accent, fontSize: 13),
+                style: TextStyle(color: colors.primary, fontSize: 13),
               ),
             ),
           Expanded(
-            child: ListView.builder(
-              itemCount: suggestions.length,
-              itemBuilder: (context, index) {
-                final s = suggestions[index];
-                return ListTile(
-                  leading: const Icon(Icons.history, color: Colors.grey, size: 20),
-                  title: Text(s['title'] ?? s['url'],
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(color: Colors.white, fontSize: 14)),
-                  subtitle: Text(s['url'],
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(color: Colors.grey, fontSize: 12)),
-                  onTap: () => Navigator.pop(context, s['url']),
-                );
-              },
-            ),
+            child: suggestions.isEmpty
+                ? Center(
+                    child: Text(
+                      controller.text.isEmpty ? "Your recent history will show up here" : "No matches",
+                      style: TextStyle(color: colors.onSurfaceVariant, fontSize: 13),
+                    ),
+                  )
+                : ListView.builder(
+                    itemCount: suggestions.length,
+                    itemBuilder: (context, index) {
+                      final s = suggestions[index];
+                      return ListTile(
+                        leading: Icon(Icons.history, color: colors.onSurfaceVariant, size: 20),
+                        title: Text(
+                          s['title'] ?? s['url'],
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(color: colors.onSurface, fontSize: 14),
+                        ),
+                        subtitle: Text(
+                          s['url'],
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(color: colors.onSurfaceVariant, fontSize: 12),
+                        ),
+                        onTap: () => Navigator.pop(context, s['url']),
+                      );
+                    },
+                  ),
           ),
         ],
       ),

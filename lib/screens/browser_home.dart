@@ -29,6 +29,8 @@ import '../services/adblock_service.dart';
 import '../services/browser_prefs.dart';
 import '../widgets/default_browser_prompt.dart';
 import 'help_feedback_screen.dart';
+import 'incognito_home_page.dart';
+import '../services/screenshot_blocker_service.dart';
 
 class BrowserHome extends StatefulWidget {
   const BrowserHome({super.key});
@@ -50,6 +52,14 @@ class _BrowserHomeState extends State<BrowserHome> {
   bool adBlockEnabled = true;
 
   //---------------------------------------------------------------------
+  // Whether the address bar/toolbar sits at the top or bottom of the
+  // screen. Loaded from Settings > Basics > "Address bar" and re-read
+  // every time Settings is closed (see the .then() after pushing
+  // SettingsScreen below), so a change applies immediately.
+  //---------------------------------------------------------------------
+  bool addressBarTop = true;
+
+  //---------------------------------------------------------------------
   // Whether newly-created tabs should default to desktop mode. Set from
   // Settings > Basics > "Desktop site (default)". Loaded in initState.
   //---------------------------------------------------------------------
@@ -58,7 +68,6 @@ class _BrowserHomeState extends State<BrowserHome> {
   static const String _desktopUserAgent =
       "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
       "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
-  static const String _nexaHomeUrl = "https://nexa-home-iota.vercel.app/";
 
   //---------------------------------------------------------------------
   // Forces a real desktop-width viewport via JS. Needed because sites like
@@ -148,17 +157,72 @@ class _BrowserHomeState extends State<BrowserHome> {
   }
 
   //---------------------------------------------------------------------
+  // The reverse of the above â€” for sites that serve a genuinely
+  // different mobile layout from their own subdomain (YouTube,
+  // Facebook, X/Twitter, Wikipedia, Reddit, Quora), rewrites the URL
+  // back to that mobile subdomain. Without this, unchecking "Desktop
+  // site" only reloaded the *same* www./desktop URL with a mobile
+  // User-Agent â€” the page still looked like the desktop layout because
+  // the URL itself, not just the UA, decides which layout these sites
+  // serve. Used by _toggleDesktopMode() and shouldOverrideUrlLoading()
+  // below so unchecking behaves exactly like Chrome's own toggle.
+  //---------------------------------------------------------------------
+  String _mobileifyUrl(String url) {
+    final uri = Uri.tryParse(url);
+    if (uri == null) return url;
+
+    switch (uri.host) {
+      case 'www.youtube.com':
+      case 'youtube.com':
+        return uri.replace(host: 'm.youtube.com').toString();
+      case 'www.facebook.com':
+      case 'facebook.com':
+        return uri.replace(host: 'm.facebook.com').toString();
+      case 'www.twitter.com':
+      case 'twitter.com':
+      case 'www.x.com':
+      case 'x.com':
+        return uri.replace(host: 'mobile.twitter.com').toString();
+      case 'www.reddit.com':
+      case 'reddit.com':
+        return uri.replace(host: 'm.reddit.com').toString();
+      case 'www.quora.com':
+        return uri.replace(host: 'm.quora.com').toString();
+      default:
+        // Wikipedia's mobile subdomain is "<lang>.m.wikipedia.org" â€”
+        // the language code sits in front of "wikipedia.org", so it
+        // needs a small rewrite rather than a straight host swap.
+        if (uri.host.endsWith('.wikipedia.org') && !uri.host.contains('.m.')) {
+          final lang = uri.host.split('.').first;
+          return uri.replace(host: '$lang.m.wikipedia.org').toString();
+        }
+        return url;
+    }
+  }
+
+  //---------------------------------------------------------------------
   // Runs once when BrowserHome is first built:
   //  - loads the saved ad-block preference and default-desktop-mode pref
   //  - shows the one-time "Nexa notifications" prompt (only ever fires
   //    once, on the very first launch, thanks to the SharedPreferences
   //    flag checked inside maybeShowNotificationPrompt()).
   //---------------------------------------------------------------------
+  //---------------------------------------------------------------------
+  // Syncs FLAG_SECURE with whether the currently active tab is
+  // incognito. Called after every place activeTabIndex or the tabs list
+  // can change (switching tabs, opening/closing a tab).
+  //---------------------------------------------------------------------
+  void _syncScreenshotBlock() {
+    ScreenshotBlockerService.setBlocked(activeTab.isIncognito);
+  }
+
   @override
   void initState() {
     super.initState();
     _loadAdBlockPref();
     _loadDefaultDesktopPref();
+    _loadAddressBarPref();
+    _syncScreenshotBlock();
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       await maybeShowNotificationPrompt(context);
       if (!mounted) return;
@@ -166,6 +230,15 @@ class _BrowserHomeState extends State<BrowserHome> {
       // never race each other for the same frame.
       await maybeShowDefaultBrowserPrompt(context);
     });
+  }
+
+  //---------------------------------------------------------------------
+  // Loads "Address bar" position (top/bottom) from Settings.
+  //---------------------------------------------------------------------
+  Future<void> _loadAddressBarPref() async {
+    final top = await BrowserPrefs.getAddressBarTop();
+    if (!mounted) return;
+    setState(() => addressBarTop = top);
   }
 
   //---------------------------------------------------------------------
@@ -185,22 +258,47 @@ class _BrowserHomeState extends State<BrowserHome> {
 
   //---------------------------------------------------------------------
   // Navigates the active tab's WebView to whatever is in the address bar.
+  // If the tab is currently showing the native home page (no WebView
+  // exists yet for it), switches it to a real page first.
   //---------------------------------------------------------------------
   void navigate() {
     final text = urlController.text.trim();
     if (text.isEmpty) return;
-    final url = _formatUrl(text);
-    activeTab.controller?.loadUrl(urlRequest: URLRequest(url: WebUri(url)));
+    loadUrlInActiveTab(text);
+  }
+
+  //---------------------------------------------------------------------
+  // Loads [input] in the active tab, whether it's currently a real
+  // WebView tab or the native home page. Used by the address bar,
+  // History, Bookmarks, and anywhere else a URL can be opened — so
+  // tapping a link from the home tab always works instead of silently
+  // doing nothing (there's no WebView controller for the home tab).
+  //---------------------------------------------------------------------
+  void loadUrlInActiveTab(String input) {
+    final url = _formatUrl(input);
+    if (activeTab.url == kNexaNewTabUrl || activeTab.controller == null) {
+      setState(() {
+        activeTab.url = url;
+        urlController.text = url;
+      });
+    } else {
+      activeTab.controller?.loadUrl(urlRequest: URLRequest(url: WebUri(url)));
+    }
     FocusScope.of(context).unfocus();
   }
 
   //---------------------------------------------------------------------
-  // Sends the active tab back to the Nexa home page.
+  // Sends the active tab back to the real Nexa home page (the native
+  // shortcuts/most-visited screen — see new_tab_page.dart), not a
+  // hosted web page. Switching a tab's url to kNexaNewTabUrl makes the
+  // IndexedStack below swap that slot from a WebView to NewTabPage.
   //---------------------------------------------------------------------
   void goHome() {
-    activeTab.controller?.loadUrl(
-      urlRequest: URLRequest(url: WebUri(_nexaHomeUrl)),
-    );
+    setState(() {
+      activeTab.url = kNexaNewTabUrl;
+      activeTab.controller = null;
+      urlController.text = "";
+    });
   }
 
   //---------------------------------------------------------------------
@@ -209,16 +307,14 @@ class _BrowserHomeState extends State<BrowserHome> {
   //---------------------------------------------------------------------
   void addNewTab({bool incognito = false}) {
     setState(() {
-      final tab = BrowserTab(
-        url: incognito ? _nexaHomeUrl : "nexa://newtab",
-        isIncognito: incognito,
-      );
+      final tab = BrowserTab(isIncognito: incognito);
       tab.isDesktopMode = defaultDesktopMode;
       tabs.add(tab);
       activeTabIndex = tabs.length - 1;
       urlController.text = "";
       showTabSwitcher = false;
     });
+    _syncScreenshotBlock();
   }
 
   //---------------------------------------------------------------------
@@ -227,10 +323,12 @@ class _BrowserHomeState extends State<BrowserHome> {
   void switchToTab(int index) {
     setState(() {
       activeTabIndex = index;
-      urlController.text = tabs[index].url;
+      urlController.text =
+          tabs[index].url == kNexaNewTabUrl ? "" : tabs[index].url;
       showTabSwitcher = false;
     });
     _checkBookmarkStatus();
+    _syncScreenshotBlock();
   }
 
   //---------------------------------------------------------------------
@@ -258,8 +356,10 @@ class _BrowserHomeState extends State<BrowserHome> {
       } else if (activeTabIndex >= tabs.length) {
         activeTabIndex = tabs.length - 1;
       }
-      urlController.text = tabs[activeTabIndex].url;
+      urlController.text =
+          tabs[activeTabIndex].url == kNexaNewTabUrl ? "" : tabs[activeTabIndex].url;
     });
+    _syncScreenshotBlock();
   }
 
   //---------------------------------------------------------------------
@@ -295,21 +395,34 @@ class _BrowserHomeState extends State<BrowserHome> {
       context,
       MaterialPageRoute(
         builder: (_) => BookmarksScreen(
-          onOpen: (url) {
-            activeTab.controller?.loadUrl(
-              urlRequest: URLRequest(url: WebUri(url)),
-            );
-          },
+          onOpen: (url) => loadUrlInActiveTab(url),
         ),
       ),
     ).then((_) => _checkBookmarkStatus());
   }
 
   //---------------------------------------------------------------------
+  // "Translate..." from the browser menu — reloads the active tab's page
+  // through Google Translate's web proxy, which doesn't need any API
+  // key. Uses the device's own language as the target.
+  //---------------------------------------------------------------------
+  void translateCurrentPage() {
+    if (activeTab.url == kNexaNewTabUrl || activeTab.url.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Open a page first to translate it")),
+      );
+      return;
+    }
+    final targetLang = WidgetsBinding.instance.platformDispatcher.locale.languageCode;
+    final translateUrl =
+        "https://translate.google.com/translate?sl=auto&tl=$targetLang&u=${Uri.encodeComponent(activeTab.url)}";
+    loadUrlInActiveTab(translateUrl);
+  }
+
+  //---------------------------------------------------------------------
   // Shows the in-page "Find" search bar.
   //---------------------------------------------------------------------
-  void openFindInPage() {
-    setState(() => showFindBar = true);
+  void openFindInPage() {    setState(() => showFindBar = true);
   }
 
   //---------------------------------------------------------------------
@@ -384,7 +497,17 @@ class _BrowserHomeState extends State<BrowserHome> {
             await controller.reload();
           }
         } else {
-          await controller.reload();
+          final mobileUrl = _mobileifyUrl(tab.url);
+          if (mobileUrl != tab.url) {
+            // Reverse of the above — send known sites back to their
+            // actual mobile subdomain instead of just reloading the
+            // desktop URL with a mobile User-Agent.
+            await controller.loadUrl(
+              urlRequest: URLRequest(url: WebUri(mobileUrl)),
+            );
+          } else {
+            await controller.reload();
+          }
         }
 
         // After the reload/navigation settles, force a real desktop
@@ -422,29 +545,6 @@ class _BrowserHomeState extends State<BrowserHome> {
     final prefs = await SharedPreferences.getInstance();
     if (!mounted) return;
     setState(() => adBlockEnabled = prefs.getBool('ad_block_enabled') ?? true);
-  }
-
-  //---------------------------------------------------------------------
-  // The Nexa home page (nexa-home-iota.vercel.app) has its own ad-hiding
-  // logic driven by a localStorage flag ('nexaAdBlock') and an
-  // applyAdBlockState() JS function (see the home page's <script> block).
-  // This keeps that in sync with the app's own "Block ads" setting, so
-  // toggling it in Settings actually hides/shows the ad units on the
-  // home page too, not just the native WebView content blockers.
-  //---------------------------------------------------------------------
-  String _buildHomePageAdBlockSyncScript(bool enabled) {
-    return '''
-(function() {
-  try {
-    localStorage.setItem('nexaAdBlock', '$enabled');
-    var toggle = document.getElementById('adBlockToggle');
-    if (toggle) toggle.checked = $enabled;
-    if (typeof applyAdBlockState === 'function') {
-      applyAdBlockState($enabled);
-    }
-  } catch (e) {}
-})();
-''';
   }
 
   //---------------------------------------------------------------------
@@ -638,83 +738,85 @@ class _BrowserHomeState extends State<BrowserHome> {
   // them).
   //---------------------------------------------------------------------
   Widget _buildBrowserScreen() {
-    return Scaffold(
-      appBar: NexaToolbar(
-        onHome: goHome,
-        addressText: urlController.text,
-        isIncognito: activeTab.isIncognito,
-        onAddressTap: () async {
-          final result = await Navigator.push<String>(
-            context,
-            MaterialPageRoute(
-              builder: (_) => SearchScreen(initialText: urlController.text),
-              fullscreenDialog: true,
-            ),
-          );
-          if (result != null && result.isNotEmpty) {
-            urlController.text = result;
-            navigate();
-          }
-        },
-        onNewTab: addNewTab,
-        tabCount: tabs.length,
-        onTabSwitcherTap: () => setState(() => showTabSwitcher = true),
-        onMenuTap: () => showBrowserMenu(
+    final toolbar = NexaToolbar(
+      onHome: goHome,
+      addressText: urlController.text,
+      isIncognito: activeTab.isIncognito,
+      onAddressTap: () async {
+        final result = await Navigator.push<String>(
           context,
-          onBack: () => activeTab.controller?.goBack(),
-          onForward: () => activeTab.controller?.goForward(),
-          onReload: () => activeTab.controller?.reload(),
-          isBookmarked: currentIsBookmarked,
-          onToggleBookmark: toggleBookmark,
-          onNewTab: addNewTab,
-          onNewIncognitoTab: () => addNewTab(incognito: true),
-          isDesktop: activeTab.isDesktopMode,
-          onToggleDesktop: _toggleDesktopMode,
-          isAdBlockEnabled: adBlockEnabled,
-          onToggleAdBlock: () => toggleAdBlock(!adBlockEnabled),
-          onFindInPage: openFindInPage,
-          onTranslate: () {},
-          onShare: shareCurrentPage,
-          onHistory: () => Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (_) => HistoryScreen(
-                onOpen: (url) => activeTab.controller?.loadUrl(
-                  urlRequest: URLRequest(url: WebUri(url)),
-                ),
-              ),
+          MaterialPageRoute(
+            builder: (_) => SearchScreen(initialText: urlController.text),
+            fullscreenDialog: true,
+          ),
+        );
+        if (result != null && result.isNotEmpty) {
+          urlController.text = result;
+          navigate();
+        }
+      },
+      onNewTab: addNewTab,
+      tabCount: tabs.length,
+      onTabSwitcherTap: () => setState(() => showTabSwitcher = true),
+      onMenuTap: () => showBrowserMenu(
+        context,
+        onBack: () => activeTab.controller?.goBack(),
+        onForward: () => activeTab.controller?.goForward(),
+        onReload: () => activeTab.controller?.reload(),
+        isBookmarked: currentIsBookmarked,
+        onToggleBookmark: toggleBookmark,
+        onNewTab: addNewTab,
+        onNewIncognitoTab: () => addNewTab(incognito: true),
+        isDesktop: activeTab.isDesktopMode,
+        onToggleDesktop: _toggleDesktopMode,
+        isAdBlockEnabled: adBlockEnabled,
+        onToggleAdBlock: () => toggleAdBlock(!adBlockEnabled),
+        onFindInPage: openFindInPage,
+        onTranslate: translateCurrentPage,
+        onShare: shareCurrentPage,
+        onHistory: () => Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => HistoryScreen(
+              onOpen: (url) => loadUrlInActiveTab(url),
             ),
-          ),
-          onDeleteBrowsingData: _deleteBrowsingData,
-          onDownloads: () => Navigator.push(
-            context,
-            MaterialPageRoute(builder: (_) => const DownloadsScreen()),
-          ),
-          onBookmarks: openBookmarksScreen,
-          onProfile: () => Navigator.push(
-            context,
-            MaterialPageRoute(builder: (_) => const ProfileScreen()),
-          ).then((_) => setState(() {})),
-          onHelpFeedback: () => Navigator.push(
-            context,
-            MaterialPageRoute(builder: (_) => const HelpFeedbackScreen()),
-          ),
-          onSettings: () => Navigator.push(
-            context,
-            MaterialPageRoute(builder: (_) => const SettingsScreen()),
-          ).then((_) {
-            // Settings may have changed ad-block or the default desktop
-            // mode preference â€” reload them so they apply without
-            // needing to restart the app.
-            _loadAdBlockPref();
-            _loadDefaultDesktopPref();
-          }),
-          onAIMode: () => Navigator.push(
-            context,
-            MaterialPageRoute(builder: (_) => const AIChatScreen()),
           ),
         ),
+        onDeleteBrowsingData: _deleteBrowsingData,
+        onDownloads: () => Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const DownloadsScreen()),
+        ),
+        onBookmarks: openBookmarksScreen,
+        onProfile: () => Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const ProfileScreen()),
+        ).then((_) => setState(() {})),
+        onHelpFeedback: () => Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const HelpFeedbackScreen()),
+        ),
+        onSettings: () => Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const SettingsScreen()),
+        ).then((_) {
+          // Settings may have changed ad-block, the default desktop mode,
+          // or the address bar position — reload them so they apply
+          // without needing to restart the app.
+          _loadAdBlockPref();
+          _loadDefaultDesktopPref();
+          _loadAddressBarPref();
+        }),
+        onAIMode: () => Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const AIChatScreen()),
+        ),
       ),
+    );
+
+    return Scaffold(
+      appBar: addressBarTop ? toolbar : null,
+      bottomNavigationBar: addressBarTop ? null : toolbar,
       body: Column(
         children: [
           //-----------------------------------------------------------
@@ -747,15 +849,31 @@ class _BrowserHomeState extends State<BrowserHome> {
 
                 // Special-case: the "new tab" placeholder page (shortcuts /
                 // most-visited grid) instead of a real WebView.
-                if (tab.url == "nexa://newtab") {
+                if (tab.url == kNexaNewTabUrl) {
+                  if (tab.isIncognito) {
+                    return IncognitoHomePage(
+                      onOpenUrl: (url) => loadUrlInActiveTab(url),
+                    );
+                  }
                   return NewTabPage(
-                    onOpenUrl: (url) =>
-                        setState(() => tab.url = _formatUrl(url)),
+                    onOpenUrl: (url) => loadUrlInActiveTab(url),
+                    onOpenIncognito: () => addNewTab(incognito: true),
                   );
                 }
 
                 return SmartRefresher(
                   controller: _getRefreshController(i),
+                  // Pull-to-refresh only engages while the page is
+                  // scrolled all the way to the top (see onScrollChanged
+                  // below). Without this, SmartRefresher can't tell the
+                  // difference between "user is scrolling the page" and
+                  // "user wants to refresh", since the WebView is a
+                  // native platform view and doesn't report its scroll
+                  // position through Flutter's normal scroll
+                  // notifications — every upward drag was being treated
+                  // as a refresh gesture, which also fired onLoadStop a
+                  // second time and duplicated the History entry.
+                  enablePullDown: tab.isAtTop,
                   onRefresh: () async {
                     await tab.controller?.reload();
                     await Future.delayed(const Duration(milliseconds: 800));
@@ -800,6 +918,18 @@ class _BrowserHomeState extends State<BrowserHome> {
                       );
                     },
                     //-----------------------------------------------
+                    // Tracks whether this tab's page is scrolled to the
+                    // top, to gate pull-to-refresh (see enablePullDown
+                    // above). Only calls setState when the at-top state
+                    // actually flips, not on every scroll pixel.
+                    //-----------------------------------------------
+                    onScrollChanged: (controller, x, y) {
+                      final atTop = y <= 0;
+                      if (atTop != tab.isAtTop) {
+                        setState(() => tab.isAtTop = atTop);
+                      }
+                    },
+                    //-----------------------------------------------
                     // Drives the top loading progress bar.
                     //-----------------------------------------------
                     onProgressChanged: (controller, p) {
@@ -831,19 +961,31 @@ class _BrowserHomeState extends State<BrowserHome> {
                       textZoom: 100,
                     ),
                     //-----------------------------------------------
-                    // While a tab is in desktop mode, redirects any
-                    // navigation to m.youtube.com over to the
-                    // www.youtube.com desktop layout instead (YouTube
-                    // sometimes bounces you back to the mobile
-                    // subdomain even with a desktop User-Agent).
+                    // Keeps navigation consistent with the current
+                    // desktop/mobile toggle: while in desktop mode,
+                    // bounces m.youtube.com etc. over to the desktop
+                    // subdomain (some sites redirect back to mobile
+                    // even with a desktop User-Agent); while in mobile
+                    // mode, does the reverse for sites whose desktop
+                    // subdomain doesn't respect the mobile User-Agent.
                     //-----------------------------------------------
                     shouldOverrideUrlLoading: (controller, navigationAction) async {
                       final requestUrl = navigationAction.request.url?.toString();
-                      if (tab.isDesktopMode && requestUrl != null) {
+                      if (requestUrl == null) return NavigationActionPolicy.ALLOW;
+
+                      if (tab.isDesktopMode) {
                         final desktopUrl = _desktopifyYouTubeUrl(requestUrl);
                         if (desktopUrl != requestUrl) {
                           await controller.loadUrl(
                             urlRequest: URLRequest(url: WebUri(desktopUrl)),
+                          );
+                          return NavigationActionPolicy.CANCEL;
+                        }
+                      } else {
+                        final mobileUrl = _mobileifyUrl(requestUrl);
+                        if (mobileUrl != requestUrl) {
+                          await controller.loadUrl(
+                            urlRequest: URLRequest(url: WebUri(mobileUrl)),
                           );
                           return NavigationActionPolicy.CANCEL;
                         }
@@ -921,14 +1063,6 @@ class _BrowserHomeState extends State<BrowserHome> {
                       if (isGooglePage) {
                         await controller.evaluateJavascript(
                           source: _buildGoogleBrandingScript(),
-                        );
-                      }
-
-                      final isNexaHomePage =
-                          url != null && url.host.contains('nexa-home');
-                      if (isNexaHomePage) {
-                        await controller.evaluateJavascript(
-                          source: _buildHomePageAdBlockSyncScript(adBlockEnabled),
                         );
                       }
 

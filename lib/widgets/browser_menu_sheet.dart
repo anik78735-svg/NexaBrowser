@@ -44,43 +44,44 @@ void showBrowserMenu(
               borderRadius: BorderRadius.circular(16),
               elevation: 6,
               child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 270, maxHeight: 600),
+                constraints: const BoxConstraints(maxWidth: 280, maxHeight: 640),
                 child: SingleChildScrollView(
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const SizedBox(height: 10),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                        children: [
-                          _circleIcon(ctx, Icons.arrow_back, "Back", () {
-                            Navigator.pop(ctx);
-                            onBack();
-                          }),
-                          _circleIcon(ctx, Icons.arrow_forward, "Forward", () {
-                            Navigator.pop(ctx);
-                            onForward();
-                          }),
-                          _circleIcon(ctx, Icons.refresh, "Reload", () {
-                            Navigator.pop(ctx);
-                            onReload();
-                          }),
-                          _circleIcon(
-                            ctx,
-                            isBookmarked ? Icons.star_rounded : Icons.star_border_rounded,
-                            "Bookmark",
-                            () {
-                              Navigator.pop(ctx);
-                              onToggleBookmark();
-                            },
-                            color: isBookmarked ? Colors.amber : null,
-                          ),
-                          _circleIcon(ctx, Icons.share_rounded, "Share", () {
-                            Navigator.pop(ctx);
-                            onShare();
-                          }),
-                        ],
+                      const SizedBox(height: 8),
+                      //-------------------------------------------------
+                      // Page actions — one per line now, each with a
+                      // soft outline-circle icon, same visual language
+                      // as every other row below instead of a separate
+                      // horizontal icon strip.
+                      //-------------------------------------------------
+                      _tile(ctx, Icons.arrow_back_rounded, "Back", () {
+                        Navigator.pop(ctx);
+                        onBack();
+                      }),
+                      _tile(ctx, Icons.arrow_forward_rounded, "Forward", () {
+                        Navigator.pop(ctx);
+                        onForward();
+                      }),
+                      _tile(ctx, Icons.refresh_rounded, "Reload", () {
+                        Navigator.pop(ctx);
+                        onReload();
+                      }),
+                      _tile(
+                        ctx,
+                        isBookmarked ? Icons.star_rounded : Icons.star_border_rounded,
+                        isBookmarked ? "Bookmarked" : "Bookmark",
+                        () {
+                          Navigator.pop(ctx);
+                          onToggleBookmark();
+                        },
+                        color: isBookmarked ? Colors.amber : null,
                       ),
+                      _tile(ctx, Icons.share_rounded, "Share", () {
+                        Navigator.pop(ctx);
+                        onShare();
+                      }),
                       const Divider(height: 20),
                       _tile(ctx, Icons.auto_awesome_rounded, "AI Mode", () {
                         Navigator.pop(ctx);
@@ -127,9 +128,10 @@ void showBrowserMenu(
                       //-------------------------------------------------
                       ListTile(
                         dense: true,
-                        leading: Icon(
+                        leading: _softCircle(
+                          ctx,
                           isDesktop ? Icons.desktop_windows_rounded : Icons.smartphone_rounded,
-                          size: 20,
+                          color: isDesktop ? colors.primary : null,
                         ),
                         title: const Text("Desktop site", style: TextStyle(fontSize: 13)),
                         trailing: Checkbox(
@@ -152,9 +154,9 @@ void showBrowserMenu(
                       //-------------------------------------------------
                       ListTile(
                         dense: true,
-                        leading: Icon(
+                        leading: _softCircle(
+                          ctx,
                           isAdBlockEnabled ? Icons.block_rounded : Icons.block_outlined,
-                          size: 20,
                           color: isAdBlockEnabled ? colors.primary : null,
                         ),
                         title: const Text("Ad blocker", style: TextStyle(fontSize: 13)),
@@ -183,11 +185,11 @@ void showBrowserMenu(
                         dense: true,
                         leading: FirebaseAuth.instance.currentUser?.photoURL != null
                             ? CircleAvatar(
-                                radius: 14,
+                                radius: 16,
                                 backgroundImage: NetworkImage(
                                     FirebaseAuth.instance.currentUser!.photoURL!),
                               )
-                            : const Icon(Icons.account_circle_outlined),
+                            : _softCircle(ctx, Icons.account_circle_outlined),
                         title: Text(
                           FirebaseAuth.instance.currentUser?.email ?? "Sign in",
                           style: const TextStyle(fontSize: 13),
@@ -213,32 +215,40 @@ void showBrowserMenu(
   );
 }
 
+//---------------------------------------------------------------------
+// A single menu row: soft-bordered circle icon + label, one per line.
+// Every row in the menu (page actions included) now shares this exact
+// look instead of the old separate icon-strip style.
+//---------------------------------------------------------------------
 Widget _tile(BuildContext context, IconData icon, String label, VoidCallback onTap, {Color? color}) {
-  final colors = Theme.of(context).colorScheme;
   return ListTile(
     dense: true,
-    leading: Icon(icon, color: color ?? colors.onSurfaceVariant, size: 20),
+    leading: _softCircle(context, icon, color: color),
     title: Text(label, style: const TextStyle(fontSize: 13)),
     onTap: onTap,
   );
 }
 
-Widget _circleIcon(BuildContext context, IconData icon, String label, VoidCallback onTap,
-    {Color? color}) {
+//---------------------------------------------------------------------
+// The light/soft outline-circle treatment: a thin, low-contrast border
+// with a transparent (or barely-tinted) fill — not a solid filled
+// circle — so the icon reads as gently outlined rather than a heavy
+// filled badge.
+//---------------------------------------------------------------------
+Widget _softCircle(BuildContext context, IconData icon, {Color? color}) {
   final colors = Theme.of(context).colorScheme;
-  return Column(
-    children: [
-      InkWell(
-        onTap: onTap,
-        customBorder: const CircleBorder(),
-        child: CircleAvatar(
-          radius: 20,
-          backgroundColor: colors.surfaceContainerHighest,
-          child: Icon(icon, color: color ?? colors.onSurfaceVariant, size: 18),
-        ),
+  final iconColor = color ?? colors.onSurfaceVariant;
+  return Container(
+    width: 32,
+    height: 32,
+    decoration: BoxDecoration(
+      shape: BoxShape.circle,
+      color: (color ?? colors.onSurface).withOpacity(0.05),
+      border: Border.all(
+        color: (color ?? colors.outline).withOpacity(0.35),
+        width: 1,
       ),
-      const SizedBox(height: 4),
-      Text(label, style: TextStyle(color: colors.onSurfaceVariant, fontSize: 10)),
-    ],
+    ),
+    child: Icon(icon, size: 16, color: iconColor),
   );
 }

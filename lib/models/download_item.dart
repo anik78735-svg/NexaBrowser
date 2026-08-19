@@ -104,6 +104,25 @@ class DownloadItem extends ChangeNotifier {
 
   Duration? get eta => _eta;
 
+  // --- file type helpers, used by the Downloads screen's filter chips
+  // and to decide whether a thumbnail preview can be shown. ---
+
+  String get _extension {
+    final name = filePath ?? fileName;
+    final dot = name.lastIndexOf('.');
+    if (dot == -1 || dot == name.length - 1) return '';
+    return name.substring(dot + 1).toLowerCase();
+  }
+
+  bool get isImage =>
+      ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'heic'].contains(_extension);
+
+  bool get isVideo =>
+      ['mp4', 'mkv', 'mov', 'webm', 'avi', '3gp'].contains(_extension);
+
+  bool get isAudio =>
+      ['mp3', 'wav', 'm4a', 'aac', 'ogg', 'flac'].contains(_extension);
+
   // --- display strings ---
 
   String get progressText =>
@@ -313,4 +332,8 @@ class DownloadItem extends ChangeNotifier {
 
     return "${size.toStringAsFixed(1)} ${suffixes[index]}";
   }
+
+  /// Public wrapper around the byte formatter, used by the Downloads
+  /// screen's "Using X MB" summary line.
+  static String formatBytesPublic(int bytes) => _formatBytes(bytes);
 }

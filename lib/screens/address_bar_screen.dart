@@ -21,38 +21,49 @@ class _AddressBarScreenState extends State<AddressBarScreen> {
     if (mounted) setState(() => _top = v);
   }
 
+  Future<void> _set(bool top) async {
+    setState(() => _top = top);
+    await BrowserPrefs.setAddressBarTop(top);
+  }
+
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
     return Scaffold(
       appBar: AppBar(title: const Text("Address bar")),
-      body: Column(
+      body: ListView(
+        padding: const EdgeInsets.symmetric(vertical: 8),
         children: [
-          RadioListTile<bool>(
-            title: const Text("Top"),
-            value: true,
-            groupValue: _top,
-            onChanged: (v) {
-              setState(() => _top = v!);
-              BrowserPrefs.setAddressBarTop(v!);
-            },
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+            child: Card(
+              clipBehavior: Clip.antiAlias,
+              child: Column(
+                children: [
+                  RadioListTile<bool>(
+                    secondary: Icon(Icons.vertical_align_top_rounded, color: colors.onSurfaceVariant),
+                    title: const Text("Top"),
+                    value: true,
+                    groupValue: _top,
+                    onChanged: (v) => _set(v!),
+                  ),
+                  const Divider(height: 1, indent: 56),
+                  RadioListTile<bool>(
+                    secondary: Icon(Icons.vertical_align_bottom_rounded, color: colors.onSurfaceVariant),
+                    title: const Text("Bottom"),
+                    value: false,
+                    groupValue: _top,
+                    onChanged: (v) => _set(v!),
+                  ),
+                ],
+              ),
+            ),
           ),
-          RadioListTile<bool>(
-            title: const Text("Bottom"),
-            value: false,
-            groupValue: _top,
-            onChanged: (v) {
-              setState(() => _top = v!);
-              BrowserPrefs.setAddressBarTop(v!);
-            },
-          ),
-          const Padding(
-            padding: EdgeInsets.all(16),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 12),
             child: Text(
-              "Your choice is saved now. To actually move the toolbar to "
-              "the bottom of the screen, send nexa_toolbar.dart — it needs "
-              "a small change there since it's currently built as an "
-              "AppBar.",
-              style: TextStyle(color: Colors.grey, fontSize: 12),
+              "Applies immediately across all your tabs.",
+              style: TextStyle(color: colors.onSurfaceVariant, fontSize: 12),
             ),
           ),
         ],
