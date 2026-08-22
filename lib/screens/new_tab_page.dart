@@ -4,7 +4,6 @@ import '../services/browser_prefs.dart';
 import 'search_screen.dart';
 import 'ai_chat_screen.dart';
 import 'address_bar_screen.dart';
-import 'appearance_screen.dart';
 
 /// The real Nexa home page — a native Flutter screen, not a hosted web
 /// page. Shown whenever a tab's url is kNexaNewTabUrl (see
@@ -13,7 +12,21 @@ class NewTabPage extends StatefulWidget {
   final Function(String url) onOpenUrl;
   final VoidCallback? onOpenIncognito;
 
-  const NewTabPage({super.key, required this.onOpenUrl, this.onOpenIncognito});
+  // Called after returning from a screen that might have changed a
+  // browser-wide setting (currently just address bar position). Without
+  // this, changing it from this page's own "Nexa tips" shortcut updated
+  // BrowserPrefs and this page's own local label, but BrowserHome's
+  // Scaffold — which is what actually decides appBar vs
+  // bottomNavigationBar — never found out, so the toolbar stayed on
+  // Top until the app was fully restarted even after picking Bottom.
+  final VoidCallback? onPrefsChanged;
+
+  const NewTabPage({
+    super.key,
+    required this.onOpenUrl,
+    this.onOpenIncognito,
+    this.onPrefsChanged,
+  });
 
   @override
   State<NewTabPage> createState() => _NewTabPageState();
@@ -67,22 +80,14 @@ class _NewTabPageState extends State<NewTabPage> {
               const SizedBox(height: 48),
 
               //-------------------------------------------------------
-              // Wordmark — deliberately large, same visual weight as
-              // "Google" on a real browser's home page.
+              // Wordmark — the actual Nexa logo asset (used on the
+              // splash screen too), not a styled Text widget. It's a
+              // white "nexa." on transparent/black, so it only reads
+              // correctly on the dark theme Nexa now always uses.
               //-------------------------------------------------------
-              RichText(
-                text: TextSpan(
-                  style: TextStyle(
-                    fontSize: 46,
-                    fontWeight: FontWeight.w700,
-                    color: colors.onSurface,
-                    letterSpacing: -1,
-                  ),
-                  children: [
-                    const TextSpan(text: "Nexa"),
-                    TextSpan(text: ".", style: TextStyle(color: colors.primary)),
-                  ],
-                ),
+              Image.asset(
+                'assets/splash/splash_logo.png',
+                height: 46,
               ),
 
               const SizedBox(height: 28),
@@ -269,23 +274,10 @@ class _NewTabPageState extends State<NewTabPage> {
                         onTap: () => Navigator.push(
                           context,
                           MaterialPageRoute(builder: (_) => const AddressBarScreen()),
-                        ).then((_) => _load()),
-                      ),
-                      const Divider(height: 1, indent: 56),
-                      ListTile(
-                        leading: CircleAvatar(
-                          radius: 18,
-                          backgroundColor: colors.tertiaryContainer,
-                          child: Icon(Icons.palette_rounded, color: colors.onTertiaryContainer, size: 18),
-                        ),
-                        title: const Text("Switch light or dark theme", style: TextStyle(fontSize: 14)),
-                        subtitle: const Text("Pick what's comfortable for your eyes",
-                            style: TextStyle(fontSize: 12)),
-                        trailing: const Icon(Icons.chevron_right_rounded),
-                        onTap: () => Navigator.push(
-                          context,
-                          MaterialPageRoute(builder: (_) => const AppearanceScreen()),
-                        ),
+                        ).then((_) {
+                          _load();
+                          widget.onPrefsChanged?.call();
+                        }),
                       ),
                     ],
                   ),

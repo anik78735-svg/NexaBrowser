@@ -129,7 +129,22 @@ class _SearchScreenState extends State<SearchScreen> {
                             decoration: InputDecoration(
                               hintText: "Search Nexa or type a URL",
                               hintStyle: TextStyle(color: colors.onSurfaceVariant),
+                              // Every border state is explicitly set to
+                              // none — the app's global InputDecorationTheme
+                              // (see app_theme.dart) defines its own blue
+                              // focusedBorder + filled background, and
+                              // since this field starts autofocused it
+                              // was picking that up UNDERNEATH the
+                              // rounded pill this Container already
+                              // draws, showing as an overlapping second
+                              // blue rectangle outline the instant this
+                              // screen opened.
                               border: InputBorder.none,
+                              enabledBorder: InputBorder.none,
+                              focusedBorder: InputBorder.none,
+                              errorBorder: InputBorder.none,
+                              disabledBorder: InputBorder.none,
+                              focusedErrorBorder: InputBorder.none,
                               isDense: true,
                               filled: false,
                               contentPadding: EdgeInsets.zero,

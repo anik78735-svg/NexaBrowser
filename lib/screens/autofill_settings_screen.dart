@@ -5,19 +5,25 @@ class AutofillSettingsScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
     return Scaffold(
       appBar: AppBar(title: const Text("Autofill services")),
-      body: const Padding(
-        padding: EdgeInsets.all(20),
+      body: Padding(
+        padding: const EdgeInsets.all(20),
         child: Text(
-          "Form autofill (name, address, payment info) is managed by "
-          "Android's system Autofill service, not by individual apps — "
-          "this can't be switched from inside Nexa Browser.\n\n"
-          "To choose or manage your autofill service: phone Settings > "
-          "System > Languages & input > Autofill service.\n\n"
-          "For website passwords specifically, use the Nexa Password "
-          "Manager under Settings > Passwords and autofill instead.",
-          style: TextStyle(color: Colors.grey, fontSize: 14, height: 1.5),
+          "Nexa's WebView is now hooked up to Android's Autofill "
+          "Framework, so saved addresses, cards and logins from your "
+          "phone's autofill service will show up as suggestions when "
+          "you tap a form field on a website — the same way they do in "
+          "other apps.\n\n"
+          "Which service provides those suggestions (Google, your "
+          "password manager, etc.) is still chosen in Android itself, "
+          "not per-app: phone Settings > System > Languages & input > "
+          "Autofill service.\n\n"
+          "For website passwords specifically, you can also use the "
+          "Nexa Password Manager under Settings > Passwords and "
+          "autofill.",
+          style: TextStyle(color: colors.onSurfaceVariant, fontSize: 14, height: 1.5),
         ),
       ),
     );

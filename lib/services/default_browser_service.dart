@@ -40,10 +40,33 @@ class DefaultBrowserService {
     if (Platform.isAndroid) {
       try {
         final opened = await _channel.invokeMethod<bool>('openDefaultBrowserSettings');
-        return opened ?? false;
+        if (opened == true) return true;
       } catch (_) {
-        return false;
+        // Falls through to the intent:// URL fallback below — this
+        // catches MissingPluginException too, which happens if an
+        // older build of the app (installed before this native channel
+        // existed) is still on the device and hasn't been fully
+        // reinstalled, so the "Set" button silently did nothing.
       }
+
+      // Belt-and-braces fallback that doesn't depend on the native
+      // channel at all: ask the OS to open its own "Default apps"
+      // settings screen via an explicit intent URL. Works from Android
+      // 7+ on stock AOSP and most OEM skins.
+      try {
+        final uri = Uri.parse(
+          'intent:#Intent;action=android.settings.MANAGE_DEFAULT_APPS_SETTINGS;end',
+        );
+        if (await canLaunchUrl(uri)) {
+          await launchUrl(uri);
+          return true;
+        }
+      } catch (_) {
+        // Some ROMs don't expose this screen either — the caller shows
+        // manual instructions if this whole method returns false.
+      }
+
+      return false;
     }
 
     if (Platform.isIOS) {

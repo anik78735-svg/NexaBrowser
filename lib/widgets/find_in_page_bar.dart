@@ -46,6 +46,8 @@ class _FindInPageBarState extends State<FindInPageBar> {
                   hintText: "Find in page",
                   hintStyle: TextStyle(color: colors.onSurfaceVariant),
                   border: InputBorder.none,
+                  enabledBorder: InputBorder.none,
+                  focusedBorder: InputBorder.none,
                   isDense: true,
                   filled: false,
                 ),

@@ -1,4 +1,5 @@
 import 'dart:collection';
+import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:flutter/services.dart';
@@ -411,6 +412,35 @@ class _BrowserHomeState extends State<BrowserHome> {
   }
 
   //---------------------------------------------------------------------
+  // Opens the Tab Switcher. Grabs a fresh thumbnail of the active tab
+  // first if it's the native New Tab / Incognito home page — those have
+  // no WebView to screenshot the normal way (that only happens in
+  // onLoadStop below), so without this the tab switcher card for a
+  // freshly-opened tab stayed on the generic globe icon forever instead
+  // of showing what the home page actually looks like.
+  //---------------------------------------------------------------------
+  Future<void> _openTabSwitcher() async {
+    if (activeTab.url == kNexaNewTabUrl) {
+      try {
+        final boundary = activeTab.repaintKey.currentContext
+            ?.findRenderObject() as RenderRepaintBoundary?;
+        if (boundary != null) {
+          final image = await boundary.toImage(pixelRatio: 0.6);
+          final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
+          if (byteData != null) {
+            activeTab.thumbnail = byteData.buffer.asUint8List();
+          }
+        }
+      } catch (_) {
+        // Best-effort — a failed capture shouldn't block opening the
+        // tab switcher, it just falls back to the generic icon.
+      }
+    }
+    if (!mounted) return;
+    setState(() => showTabSwitcher = true);
+  }
+
+  //---------------------------------------------------------------------
   // Opens the native share sheet for the current page's URL.
   //---------------------------------------------------------------------
   void shareCurrentPage() {
@@ -565,27 +595,20 @@ class _BrowserHomeState extends State<BrowserHome> {
 
         if (tab.isDesktopMode) {
           final desktopUrl = _desktopifyYouTubeUrl(tab.url);
-          if (desktopUrl != tab.url) {
-            // YouTube mobile URL -> rewrite to www. and navigate there
-            // directly instead of just reloading the same m. URL.
-            await controller.loadUrl(
-              urlRequest: URLRequest(url: WebUri(desktopUrl)),
-            );
-          } else {
-            await controller.reload();
-          }
+          final targetUrl = desktopUrl != tab.url ? desktopUrl : tab.url;
+          // Deliberately loadUrl (a fresh navigation) instead of
+          // controller.reload() for BOTH directions below. reload() on
+          // Android WebView can reuse the previous response/back-forward
+          // cache entry instead of re-requesting with the new
+          // User-Agent header, so the toggle would visually flip in the
+          // menu but the page itself stayed on whichever mode it was
+          // already in until the user did a second, manual pull-to-
+          // refresh. A real loadUrl forces a fresh request every time.
+          await controller.loadUrl(urlRequest: URLRequest(url: WebUri(targetUrl)));
         } else {
           final mobileUrl = _mobileifyUrl(tab.url);
-          if (mobileUrl != tab.url) {
-            // Reverse of the above — send known sites back to their
-            // actual mobile subdomain instead of just reloading the
-            // desktop URL with a mobile User-Agent.
-            await controller.loadUrl(
-              urlRequest: URLRequest(url: WebUri(mobileUrl)),
-            );
-          } else {
-            await controller.reload();
-          }
+          final targetUrl = mobileUrl != tab.url ? mobileUrl : tab.url;
+          await controller.loadUrl(urlRequest: URLRequest(url: WebUri(targetUrl)));
         }
 
         // After the reload/navigation settles, force a real desktop
@@ -633,16 +656,27 @@ class _BrowserHomeState extends State<BrowserHome> {
   String _buildGoogleBrandingScript() {
     return '''
 (function() {
-  const BRAND_TEXT = 'Nexa';
-  const badgeStyle = "display:inline-flex;align-items:center;justify-content:center;padding:10px 16px;border-radius:999px;background:linear-gradient(135deg,#2DE1B0 0%,#1A73E8 100%);box-shadow:0 10px 24px rgba(0,0,0,0.16);font-size:30px;font-weight:700;color:#ffffff;letter-spacing:1px;line-height:1;white-space:nowrap;font-family:Arial,Helvetica,sans-serif;";
+  // One shared font/weight for every "Nexa" replacement on the page —
+  // the big logo badge AND every incidental text mention below — so
+  // it's visually consistent instead of each spot picking up whatever
+  // font the surrounding Google page happened to use there.
+  const BRAND_FONT = "'Poppins','Segoe UI',Arial,Helvetica,sans-serif";
+  const badgeStyle = "display:inline-flex;align-items:center;justify-content:center;padding:8px 14px;border-radius:999px;background:linear-gradient(135deg,#2DE1B0 0%,#1A73E8 100%);box-shadow:0 10px 24px rgba(0,0,0,0.16);font-size:26px;font-weight:800;color:#ffffff;letter-spacing:-0.5px;line-height:1;white-space:nowrap;font-family:" + BRAND_FONT + ";text-transform:lowercase;";
   if (window.__nexaBrandingInjected) return;
   window.__nexaBrandingInjected = true;
+
+  if (!document.getElementById('nexa-brand-style')) {
+    const style = document.createElement('style');
+    style.id = 'nexa-brand-style';
+    style.textContent = '.nexa-brand-text{font-family:' + BRAND_FONT + ';font-weight:700;}';
+    document.head.appendChild(style);
+  }
 
   function createBadge() {
     const badge = document.createElement('span');
     badge.className = 'nexa-brand-mark';
-    badge.textContent = BRAND_TEXT;
-    badge.setAttribute('aria-label', BRAND_TEXT);
+    badge.textContent = 'nexa';
+    badge.setAttribute('aria-label', 'Nexa');
     badge.style.cssText = badgeStyle;
     return badge;
   }
@@ -662,7 +696,7 @@ class _BrowserHomeState extends State<BrowserHome> {
     }
   }
 
-  function applyBranding() {
+  function applyLogoBranding() {
     const selectors = ['img[alt="Google"]', '#logo img', '.logo img', 'a[href^="/?"] img', '#logocont', '.logocont', '#logo', '.logo'];
     const seen = new WeakSet();
 
@@ -675,6 +709,54 @@ class _BrowserHomeState extends State<BrowserHome> {
     });
   }
 
+  //-----------------------------------------------------------------
+  // Everywhere else "Google" appears as plain text (page title,
+  // "Sign in to Google", footer links like "About Google", button
+  // labels, etc.) gets swapped to "Nexa" too, case-preserved, walking
+  // actual text nodes only — never touches attributes/URLs, and skips
+  // inputs/scripts/anything editable so it can never rewrite something
+  // the user typed or is about to submit.
+  //-----------------------------------------------------------------
+  const WORD_RE = /\\bGoogle\\b/g;
+  const SKIP_TAGS = new Set(['SCRIPT', 'STYLE', 'INPUT', 'TEXTAREA', 'NOSCRIPT']);
+
+  function swapWord(text) {
+    return text.replace(WORD_RE, (match) => {
+      if (match === 'GOOGLE') return 'NEXA';
+      if (match[0] === match[0].toUpperCase()) return 'Nexa';
+      return 'nexa';
+    });
+  }
+
+  function brandTextNode(node) {
+    if (!node.nodeValue || !WORD_RE.test(node.nodeValue)) return;
+    WORD_RE.lastIndex = 0;
+    const parent = node.parentElement;
+    if (!parent || SKIP_TAGS.has(parent.tagName) || parent.isContentEditable) return;
+    node.nodeValue = swapWord(node.nodeValue);
+    if (!parent.classList.contains('nexa-brand-text')) {
+      parent.classList.add('nexa-brand-text');
+    }
+  }
+
+  function applyTextBranding(root) {
+    if (document.title && WORD_RE.test(document.title)) {
+      document.title = swapWord(document.title);
+    }
+    WORD_RE.lastIndex = 0;
+
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, null);
+    let node;
+    while ((node = walker.nextNode())) {
+      brandTextNode(node);
+    }
+  }
+
+  function applyBranding() {
+    applyLogoBranding();
+    applyTextBranding(document.body || document.documentElement);
+  }
+
   function init() {
     applyBranding();
     const observer = new MutationObserver(() => applyBranding());
@@ -684,6 +766,7 @@ class _BrowserHomeState extends State<BrowserHome> {
       observer.observe(targetRoot, {
         childList: true,
         subtree: true,
+        characterData: true,
         attributes: true,
         attributeFilter: ['alt', 'src', 'href', 'class', 'id']
       });
@@ -831,7 +914,7 @@ class _BrowserHomeState extends State<BrowserHome> {
       },
       onNewTab: addNewTab,
       tabCount: tabs.length,
-      onTabSwitcherTap: () => setState(() => showTabSwitcher = true),
+      onTabSwitcherTap: _openTabSwitcher,
       onMenuTap: () => showBrowserMenu(
         context,
         onBack: () => activeTab.controller?.goBack(),
@@ -925,13 +1008,20 @@ class _BrowserHomeState extends State<BrowserHome> {
                 // most-visited grid) instead of a real WebView.
                 if (tab.url == kNexaNewTabUrl) {
                   if (tab.isIncognito) {
-                    return IncognitoHomePage(
-                      onOpenUrl: (url) => loadUrlInActiveTab(url),
+                    return RepaintBoundary(
+                      key: tab.repaintKey,
+                      child: IncognitoHomePage(
+                        onOpenUrl: (url) => loadUrlInActiveTab(url),
+                      ),
                     );
                   }
-                  return NewTabPage(
-                    onOpenUrl: (url) => loadUrlInActiveTab(url),
-                    onOpenIncognito: () => addNewTab(incognito: true),
+                  return RepaintBoundary(
+                    key: tab.repaintKey,
+                    child: NewTabPage(
+                      onOpenUrl: (url) => loadUrlInActiveTab(url),
+                      onOpenIncognito: () => addNewTab(incognito: true),
+                      onPrefsChanged: _loadAddressBarPref,
+                    ),
                   );
                 }
 
@@ -1005,6 +1095,20 @@ class _BrowserHomeState extends State<BrowserHome> {
                       builtInZoomControls: true,
                       displayZoomControls: false,
                       textZoom: 100,
+                      // Android's Autofill Framework can only see form
+                      // fields inside a WebView that's a real native
+                      // View in the hierarchy — the plugin's default
+                      // "virtual display" hosting mode hides the
+                      // WebView from it entirely, which is why saved
+                      // addresses/cards/logins never showed up as
+                      // autofill suggestions no matter what was
+                      // configured on the Android side. Hybrid
+                      // Composition actually attaches it, so the OS
+                      // Autofill service (and Nexa's own password
+                      // manager, which also relies on this) can see
+                      // and fill the page's form fields.
+                      useHybridComposition: true,
+                      saveFormData: !tab.isIncognito,
                     ),
                     //-----------------------------------------------
                     // Keeps navigation consistent with the current

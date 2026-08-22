@@ -138,6 +138,8 @@ class _AIChatScreenState extends State<AIChatScreen> {
                           hintText: "Message nexa. AI",
                           hintStyle: TextStyle(color: colors.onSurfaceVariant),
                           border: InputBorder.none,
+                          enabledBorder: InputBorder.none,
+                          focusedBorder: InputBorder.none,
                         ),
                         onSubmitted: (_) => _send(),
                       ),

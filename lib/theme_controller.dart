@@ -1,42 +1,27 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+/// Nexa is dark-only now (see the Appearance screen — the Light/System
+/// picker was removed on request, along with defaulting to Light).
+/// This still goes through SharedPreferences so a device that was
+/// previously saved as "light" or "system" from an older build also
+/// comes back up in Dark instead of silently reverting to a light look.
 class ThemeController {
-  // Default is Light until the user manually picks Dark (or System) in
-  // Settings > Appearance — matches what was asked for explicitly.
-  static final ValueNotifier<ThemeMode> themeMode = ValueNotifier(ThemeMode.light);
+  static final ValueNotifier<ThemeMode> themeMode = ValueNotifier(ThemeMode.dark);
 
   static Future<void> load() async {
     final prefs = await SharedPreferences.getInstance();
-    final saved = prefs.getString('theme_mode') ?? 'light';
-    themeMode.value = _fromString(saved);
+    // Always dark — but still write it below so a fresh install and an
+    // upgraded one converge on the same stored value.
+    themeMode.value = ThemeMode.dark;
+    await prefs.setString('theme_mode', 'dark');
   }
 
+  /// Kept for API compatibility with anything still calling it, but
+  /// Nexa no longer offers a way to leave Dark mode.
   static Future<void> setThemeMode(ThemeMode mode) async {
-    themeMode.value = mode;
+    themeMode.value = ThemeMode.dark;
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('theme_mode', _toString(mode));
-  }
-
-  static ThemeMode _fromString(String s) {
-    switch (s) {
-      case 'dark':
-        return ThemeMode.dark;
-      case 'system':
-        return ThemeMode.system;
-      default:
-        return ThemeMode.light;
-    }
-  }
-
-  static String _toString(ThemeMode mode) {
-    switch (mode) {
-      case ThemeMode.dark:
-        return 'dark';
-      case ThemeMode.system:
-        return 'system';
-      default:
-        return 'light';
-    }
+    await prefs.setString('theme_mode', 'dark');
   }
 }
